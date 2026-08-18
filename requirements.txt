@@ -1,0 +1,20 @@
+# Fase 1 - Datos, features y modelado
+pandas
+numpy
+polars
+holidays
+lightgbm
+xgboost
+scikit-learn
+optuna
+
+# Fase 2 - Dashboard (se usaran mas adelante)
+streamlit
+plotly
+
+# Tests
+pytest
+
+# NOTA: prophet / neuralprophet / sktime se agregaran cuando se implemente esa
+# fase especifica. prophet en particular requiere un toolchain de compilacion
+# (cmdstanpy) que conviene instalar y validar por separado, no de entrada.

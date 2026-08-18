@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+.env
+/data/
+*.csv
+*.parquet
+*.joblib
+optuna_*.db
+.DS_Store
