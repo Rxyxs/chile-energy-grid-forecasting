@@ -24,11 +24,13 @@ import pandas as pd
 import polars as pl
 
 from src.features.build_features import (
+    WEATHER_COLUMNS,
     add_calendar_features,
     add_cyclical_features,
     add_holiday_feature,
     add_lag_features,
     add_rolling_features,
+    add_weather_lag_features,
 )
 from src.models.train_forecaster import CATEGORICAL_FEATURES, TARGET_COLUMNS, get_feature_columns
 
@@ -66,6 +68,7 @@ def load_models() -> dict[str, object]:
 
 def _build_features_for_buffer(buffer: pl.DataFrame) -> pl.DataFrame:
     df = add_lag_features(buffer)
+    df = add_weather_lag_features(df)
     df = add_rolling_features(df)
     df = add_cyclical_features(df)
     df = add_calendar_features(df)
@@ -81,9 +84,19 @@ def forecast_node(node_history: pd.DataFrame, node: str, horizon: int, models: d
 
     for _ in range(horizon):
         next_timestamp = buffer["timestamp"].iloc[-1] + pd.Timedelta(hours=1)
+        # El clima de la hora futura se persiste desde la última hora conocida
+        # del buffer (no NaN, como los targets): esta simulación no incluye un
+        # pronóstico meteorológico (NWP) real, y sin *algún* valor las
+        # features de lag climático quedarían en NaN desde el segundo paso en
+        # adelante, rompiendo el pronóstico recursivo. Persistencia es una
+        # aproximación deliberadamente simple -- una limitación documentada,
+        # no una que se intenta disimular -- de lo que en producción sería un
+        # pronóstico NWP real para las horas futuras.
+        last_known_weather = {col: buffer[col].iloc[-1] for col in WEATHER_COLUMNS}
         new_row = pd.DataFrame([{
             "timestamp": next_timestamp, "node": node,
             **{t: np.nan for t in TARGET_COLUMNS},
+            **last_known_weather,
         }])
         extended = pd.concat([buffer, new_row], ignore_index=True)
 

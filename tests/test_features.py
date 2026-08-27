@@ -8,6 +8,7 @@ from src.features.build_features import (
     add_holiday_feature,
     add_lag_features,
     add_rolling_features,
+    add_weather_lag_features,
 )
 
 
@@ -24,6 +25,7 @@ def _toy_panel() -> pl.DataFrame:
                 "timestamp": ts, "node": node,
                 "solar_generation_mwh": float(i + 1), "wind_generation_mwh": float(i + 1),
                 "demand_mwh": float(i + 1), "marginal_cost_usd_mwh": float(i + 1),
+                "ghi_w_m2": float(i + 1), "wind_speed_ms": float(i + 1), "temperature_c": float(i + 1),
             })
     return pl.DataFrame(rows)
 
@@ -85,3 +87,30 @@ def test_holiday_feature_flags_new_years_day():
     df = add_holiday_feature(_toy_panel())
     jan_1 = df.filter(pl.col("timestamp").dt.date() == pl.date(2024, 1, 1))
     assert jan_1["is_holiday"].to_list() == [1] * jan_1.height
+
+
+def test_weather_lag_features_use_previous_value_within_node():
+    df = add_weather_lag_features(_toy_panel())
+    node_a = df.filter(pl.col("node") == "A").sort("timestamp")
+
+    values = node_a["wind_speed_ms"].to_list()
+    lag_1h = node_a["wind_speed_ms_lag_1h"].to_list()
+
+    assert lag_1h[0] is None
+    for i in range(1, len(values)):
+        assert lag_1h[i] == values[i - 1]
+
+
+def test_weather_lag_features_never_cross_nodes():
+    df = add_weather_lag_features(_toy_panel())
+    first_row_per_node = df.sort(["node", "timestamp"]).group_by("node", maintain_order=True).first()
+    assert first_row_per_node["temperature_c_lag_1h"].is_null().all()
+
+
+def test_weather_lag_features_include_24h_diurnal_lag():
+    df = add_weather_lag_features(_toy_panel())
+    node_a = df.filter(pl.col("node") == "A").sort("timestamp")
+    ghi = node_a["ghi_w_m2"].to_list()
+    lag_24h = node_a["ghi_w_m2_lag_24h"].to_list()
+
+    assert lag_24h[24] == ghi[0]

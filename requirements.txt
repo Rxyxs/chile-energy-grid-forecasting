@@ -13,6 +13,12 @@ joblib
 streamlit
 plotly
 
+# Notebook (02_Weather_Augmented_Rolling_CV.ipynb)
+jupyter
+nbformat
+nbconvert
+matplotlib
+
 # Tests
 pytest
 

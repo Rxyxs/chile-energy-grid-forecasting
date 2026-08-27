@@ -25,6 +25,7 @@ import pandas as pd
 from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_absolute_error
 
+from src.features.build_features import WEATHER_COLUMNS
 from src.models.baselines import naive_metrics, seasonal_naive_metrics
 from src.models.validation import get_walk_forward_folds, wape
 
@@ -58,11 +59,15 @@ def load_features(path: Path = FEATURES_PATH) -> pd.DataFrame:
 
 
 def get_feature_columns(df: pd.DataFrame) -> list[str]:
-    """Todas las columnas salvo identificadores y los 4 targets crudos -- así al
-    pronosticar, por ejemplo, `marginal_cost_usd_mwh` no se usa `demand_mwh` de
-    la misma hora (que en producción tampoco se conoce con certeza de antemano),
-    solo sus lags/rolling ya calculados. Idéntico para los 4 targets."""
-    exclude = set(ID_COLUMNS) | set(TARGET_COLUMNS)
+    """Todas las columnas salvo identificadores, los 4 targets crudos, y las
+    variables meteorológicas crudas de la hora actual -- así al pronosticar,
+    por ejemplo, `marginal_cost_usd_mwh` no se usa `demand_mwh` de la misma
+    hora (que en producción tampoco se conoce con certeza de antemano), solo
+    sus lags/rolling ya calculados. El mismo motivo excluye `ghi_w_m2`,
+    `wind_speed_ms` y `temperature_c` crudos (ver
+    `build_features.add_weather_lag_features`): solo sus lags entran como
+    feature. Idéntico para los 4 targets y las 3 variables climáticas."""
+    exclude = set(ID_COLUMNS) | set(TARGET_COLUMNS) | set(WEATHER_COLUMNS)
     return [c for c in df.columns if c not in exclude]
 
 

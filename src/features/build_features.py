@@ -21,6 +21,18 @@ TARGET_COLUMNS = ["solar_generation_mwh", "wind_generation_mwh", "demand_mwh", "
 LAG_HOURS = [1, 24, 168]
 ROLLING_WINDOWS = [6, 24]
 
+# Radiación solar (GHI), velocidad de viento y temperatura: los drivers
+# meteorológicos reales de la generación renovable (ver
+# `src/data/fetch_energy_data.py`, donde solar/eólica se derivan de estas
+# variables, no al revés). Lags más cortos que los de los targets
+# (`LAG_HOURS`): el clima se autocorrelaciona y decae más rápido hora a hora
+# que un patrón semanal de demanda, así que 1h/3h/6h capturan la persistencia
+# de corto plazo (nubosidad, un frente de viento) y 24h captura el ciclo
+# diurno (misma hora, un día atrás) -- no hace falta un lag de 168h como en
+# los targets, porque el clima no tiene un patrón semanal propio.
+WEATHER_COLUMNS = ["ghi_w_m2", "wind_speed_ms", "temperature_c"]
+WEATHER_LAG_HOURS = [1, 3, 6, 24]
+
 TWO_PI = 2 * math.pi
 CHILE_HOLIDAYS = holidays.Chile(years=range(2023, 2028))
 
@@ -31,6 +43,29 @@ def load_raw_data(path: Path = RAW_PATH) -> pl.DataFrame:
 
 def add_lag_features(df: pl.DataFrame, columns: list[str] = TARGET_COLUMNS, lags: list[int] = LAG_HOURS) -> pl.DataFrame:
     """Agrega `<col>_lag_<h>h` -- el valor de `col` hace `h` horas, en ese mismo nodo."""
+    df = df.sort(["node", "timestamp"])
+    exprs = [
+        pl.col(col).shift(lag).over("node").alias(f"{col}_lag_{lag}h")
+        for col in columns
+        for lag in lags
+    ]
+    return df.with_columns(exprs)
+
+
+def add_weather_lag_features(
+    df: pl.DataFrame, columns: list[str] = WEATHER_COLUMNS, lags: list[int] = WEATHER_LAG_HOURS
+) -> pl.DataFrame:
+    """Agrega `<col>_lag_<h>h` para las variables meteorológicas, por nodo.
+
+    Deliberadamente **lags, nunca el valor crudo de la hora actual**: aunque
+    la irradiancia/viento/temperatura de la hora que se está pronosticando
+    sí podrían conocerse en producción vía un pronóstico NWP (a diferencia de
+    un target, que nunca se conoce por adelantado), este proyecto no simula
+    pronósticos meteorológicos -- solo observaciones históricas -- así que
+    usar el valor de la hora actual sería, en la práctica, filtración: el
+    dataset no distingue "clima observado" de "clima que en verdad se sabría
+    de antemano". Los lags evitan ese problema sin necesitar esa distinción.
+    """
     df = df.sort(["node", "timestamp"])
     exprs = [
         pl.col(col).shift(lag).over("node").alias(f"{col}_lag_{lag}h")
@@ -88,6 +123,7 @@ def add_holiday_feature(df: pl.DataFrame) -> pl.DataFrame:
 def build_features(df: pl.DataFrame) -> pl.DataFrame:
     """Pipeline completo de feature engineering sobre el panel horario crudo."""
     df = add_lag_features(df)
+    df = add_weather_lag_features(df)
     df = add_rolling_features(df)
     df = add_cyclical_features(df)
     df = add_calendar_features(df)

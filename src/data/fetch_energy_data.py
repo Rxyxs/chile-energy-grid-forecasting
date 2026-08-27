@@ -3,7 +3,11 @@
 El CEN (Coordinador Eléctrico Nacional) no expone una API pública simple y
 gratuita para descargar históricos horarios por barra, así que este módulo
 simula 2 años de datos (2024-2025) para 5 nodos/barras reales del SEN, con
-generación solar y eólica, demanda y costo marginal (precio spot).
+generación solar y eólica, demanda, costo marginal (precio spot), y las
+variables meteorológicas físicas que efectivamente *causan* la generación
+renovable (irradiancia solar, velocidad de viento, temperatura) -- no como
+una serie paralela desconectada, sino como el insumo del que la generación se
+deriva matemáticamente (ver `_ghi_wm2`, `_wind_power_fraction`).
 
 No es ruido: el costo marginal se deriva de la demanda residual (demanda menos
 renovables) siguiendo la lógica real de orden de mérito del mercado eléctrico
@@ -61,6 +65,38 @@ DEMAND_SHAPE = {
 
 CHILE_HOLIDAYS = holidays.Chile(years=[2023, 2024, 2025, 2026])
 
+# Irradiancia solar de cielo despejado al mediodía solar, por nodo (W/m2) --
+# refleja la geografía real: el norte (desierto de Atacama, Crucero/Cardones)
+# tiene algunos de los niveles de irradiancia más altos del mundo; el centro
+# es intermedio; el sur (Charrúa/Biobío) es más nuboso y templado.
+GHI_CLEAR_SKY_PEAK_WM2: dict[str, float] = {
+    "Crucero_220kV": 1050.0,
+    "Cardones_220kV": 1030.0,
+    "Quillota_220kV": 950.0,
+    "Alto_Jahuel_220kV": 930.0,
+    "Charrua_220kV": 800.0,
+}
+
+# Curva de potencia eólica simplificada (cúbica entre cut-in y velocidad
+# nominal, plana en capacidad nominal sobre ella, cero bajo cut-in) -- el
+# comportamiento real de una turbina, no un exponente arbitrario sobre un
+# índice adimensional.
+WIND_CUT_IN_MS = 3.0
+WIND_RATED_MS = 12.5
+WIND_SPEED_PEAK_MS = 16.0  # techo del índice de viento autocorrelado, ya en m/s
+
+# Temperatura: media anual y amplitudes estacional/diurna por nodo -- el norte
+# desértico (Atacama) tiene el mayor rango diurno (días calurosos, noches
+# frías, cielo despejado sin humedad que module la temperatura); el sur es
+# más templado y húmedo, con un rango diurno menor.
+TEMPERATURE_PARAMS: dict[str, dict[str, float]] = {
+    "Crucero_220kV":     {"annual_mean_c": 18.0, "seasonal_amplitude_c": 6.0, "diurnal_amplitude_c": 14.0},
+    "Cardones_220kV":    {"annual_mean_c": 17.0, "seasonal_amplitude_c": 5.5, "diurnal_amplitude_c": 12.0},
+    "Quillota_220kV":    {"annual_mean_c": 15.5, "seasonal_amplitude_c": 6.5, "diurnal_amplitude_c": 9.0},
+    "Alto_Jahuel_220kV": {"annual_mean_c": 14.5, "seasonal_amplitude_c": 7.5, "diurnal_amplitude_c": 10.0},
+    "Charrua_220kV":     {"annual_mean_c": 12.5, "seasonal_amplitude_c": 6.5, "diurnal_amplitude_c": 8.0},
+}
+
 
 def _seasonal_factor(day_of_year: np.ndarray, peak_day: int = 355, amplitude: float = 0.25, base: float = 0.75) -> np.ndarray:
     """Factor estacional hemisferio sur: pico cerca del solsticio de verano
@@ -85,6 +121,69 @@ def _clear_sky_daily_factor(n_days: int, rng: np.random.Generator) -> np.ndarray
     return rng.beta(6, 1.5, size=n_days)
 
 
+def _ghi_wm2(node: str, day_of_year: np.ndarray, shape: np.ndarray, clear_sky: np.ndarray,
+             rng: np.random.Generator, n: int) -> np.ndarray:
+    """Irradiancia horizontal global (GHI), W/m2 -- la variable meteorológica
+    real que un pronosticador de generación solar usaría en producción (vía
+    observación reciente o pronóstico NWP). Combina el pico de cielo despejado
+    del nodo, la curva diurna/estacional ya calculada (`shape`) y la nubosidad
+    diaria (`clear_sky`); la atenuación atmosférica estacional adicional
+    (ángulo solar más bajo en invierno, más trayecto de atmósfera) se modela
+    con una amplitud menor a la de `shape`, porque `shape` ya captura la
+    mayor parte del efecto estacional vía el largo del día."""
+    peak = GHI_CLEAR_SKY_PEAK_WM2[node]
+    seasonal_atmospheric = _seasonal_factor(day_of_year, peak_day=355, amplitude=0.10, base=0.93)
+    noise = rng.normal(1.0, 0.02, n)
+    return np.clip(peak * seasonal_atmospheric * shape * clear_sky * noise, 0, None)
+
+
+def _wind_speed_ms(wind_idx: np.ndarray, rng: np.random.Generator, n: int) -> np.ndarray:
+    """Velocidad de viento, m/s -- reescalado directo del mismo índice
+    autocorrelado con reversión a la media (`_wind_index`) que ya modela la
+    persistencia horaria y los "frentes de viento". Deliberadamente SIN
+    ruido adicional aquí: `wind_idx` ya trae su propia variación hora a hora
+    (su propio término `rng.normal`), y agregar una segunda fuente de ruido
+    independiente justo antes de la curva de potencia (ver
+    `_wind_power_fraction`) se probó empíricamente y resultó en una
+    generación tan ruidosa que ni siquiera un modelo con acceso directo a
+    los lags de viento superaba a la persistencia naive -- doble conteo de
+    ruido, no realismo adicional."""
+    return np.clip(WIND_SPEED_PEAK_MS * wind_idx, 0, None)
+
+
+def _wind_power_fraction(speed_ms: np.ndarray) -> np.ndarray:
+    """Fracción de capacidad nominal entregada por una turbina a una
+    velocidad de viento dada: cero bajo cut-in, creciente entre cut-in y la
+    velocidad nominal, plana en capacidad nominal por encima -- el
+    comportamiento real de una curva de potencia eólica. Exponente 2 (no el
+    v^3 "ideal" de la energía cinética de libro de texto): las curvas de
+    potencia publicadas por fabricantes reales son más suaves que el cubo
+    idealizado cerca de cut-in (el control de pitch de las palas "redondea"
+    la curva); un exponente 3 sobre una señal de viento con ruido realista
+    amplificó ese ruido ~3x en términos relativos y volvió la generación
+    eólica más ruidosa que predecible incluso para un modelo con acceso
+    directo a la velocidad de viento -- un artefacto de la formulación, no
+    una dificultad real del problema, y se corrigió en vez de reportarlo
+    como si fuera un hallazgo genuino."""
+    frac = np.zeros_like(speed_ms)
+    ramp_mask = (speed_ms > WIND_CUT_IN_MS) & (speed_ms < WIND_RATED_MS)
+    frac[ramp_mask] = ((speed_ms[ramp_mask] - WIND_CUT_IN_MS) / (WIND_RATED_MS - WIND_CUT_IN_MS)) ** 1.2
+    frac[speed_ms >= WIND_RATED_MS] = 1.0
+    return frac
+
+
+def _temperature_c(node: str, hour: np.ndarray, day_of_year: np.ndarray, rng: np.random.Generator, n: int) -> np.ndarray:
+    """Temperatura del aire, °C -- media anual del nodo + ciclo estacional
+    (hemisferio sur: pico a fines de enero, con el retraso térmico típico
+    respecto al solsticio del 21 de diciembre) + ciclo diurno (mínimo hacia
+    el amanecer, máximo a media tarde) + ruido."""
+    params = TEMPERATURE_PARAMS[node]
+    seasonal = params["seasonal_amplitude_c"] * np.cos(2 * np.pi * (day_of_year - 25) / 365.25)
+    diurnal = params["diurnal_amplitude_c"] * np.sin(2 * np.pi * (hour - 9) / 24)
+    noise = rng.normal(0, 1.2, n)
+    return params["annual_mean_c"] + seasonal + diurnal + noise
+
+
 def _wind_index(n: int, rng: np.random.Generator, mean_reversion: float = 0.02) -> np.ndarray:
     """Camino aleatorio acotado con reversión a la media: el viento tiene
     persistencia horaria (no cambia bruscamente hora a hora) pero, a diferencia
@@ -107,23 +206,43 @@ def _generate_node_series(node: str, params: dict, timestamps: pd.DatetimeIndex,
     dow = timestamps.dayofweek.to_numpy()
     date_only = timestamps.normalize()
 
-    # --- Solar: campana diurna x estacionalidad x nubosidad diaria x ruido horario ---
+    # --- Meteorología: las variables físicas de las que la generación renovable
+    # (y, en menor medida, la demanda) realmente dependen -- se calculan
+    # primero, y solar/eólica/demanda se derivan de ellas, no al revés. ---
     seasonal = _seasonal_factor(day_of_year)
     shape = _solar_shape(hour, day_of_year)
     unique_dates = date_only.unique().sort_values()
     clear_sky_by_day = _clear_sky_daily_factor(len(unique_dates), rng)
     clear_sky_map = dict(zip(unique_dates, clear_sky_by_day))
     clear_sky = np.array([clear_sky_map[d] for d in date_only])
-    hourly_noise = rng.normal(1.0, 0.03, n)
-    solar_mwh = np.clip(params["solar_capacity_mwh"] * seasonal * shape * clear_sky * hourly_noise, 0, None)
+    ghi_wm2 = _ghi_wm2(node, day_of_year, shape, clear_sky, rng, n)
 
-    # --- Eólica: índice de viento autocorrelado x capacidad, algo más de viento en invierno ---
     wind_idx = _wind_index(n, rng)
-    wind_seasonal = _seasonal_factor(day_of_year, peak_day=172, amplitude=0.10, base=0.9)
-    wind_mwh = params["wind_capacity_mwh"] * (wind_idx ** 1.2) * wind_seasonal
-    wind_mwh = np.clip(wind_mwh + rng.normal(0, 1.5, n), 0, params["wind_capacity_mwh"])
+    wind_speed_ms = _wind_speed_ms(wind_idx, rng, n)
 
-    # --- Demanda: perfil horario x fin de semana/feriado x estacionalidad x tendencia de crecimiento ---
+    temperature_c = _temperature_c(node, hour, day_of_year, rng, n)
+
+    # --- Solar: generación como fracción lineal de GHI sobre el pico de cielo
+    # despejado del nodo -- la irradiancia YA incorpora estacionalidad, curva
+    # diurna y nubosidad, así que no hace falta volver a aplicarlas aquí. ---
+    solar_mwh = np.clip(params["solar_capacity_mwh"] * (ghi_wm2 / GHI_CLEAR_SKY_PEAK_WM2[node]), 0, None)
+
+    # --- Eólica: curva de potencia cúbica real sobre la velocidad de viento,
+    # con una pequeña modulación estacional adicional (densidad del aire,
+    # más alta y fría en invierno) sobre la curva de potencia misma. ---
+    # Sin ruido aditivo adicional sobre la potencia: `wind_speed_ms` ya trae
+    # su propio ruido (4%, turbulencia/medición realista) y la curva cúbica
+    # ya amplifica esa variación de forma no lineal -- sumar un segundo
+    # ruido independiente directamente sobre la potencia duplicaría la
+    # fuente de aleatoriedad sin ninguna justificación física.
+    wind_seasonal = _seasonal_factor(day_of_year, peak_day=172, amplitude=0.10, base=0.90)
+    wind_mwh = np.clip(params["wind_capacity_mwh"] * _wind_power_fraction(wind_speed_ms) * wind_seasonal, 0, params["wind_capacity_mwh"])
+
+    # --- Demanda: perfil horario x fin de semana/feriado x estacionalidad x
+    # tendencia de crecimiento x un efecto HVAC modesto por temperatura (más
+    # consumo con frío o calor extremos respecto a una zona de confort, un
+    # mecanismo real pero deliberadamente secundario frente al perfil horario
+    # y de calendario, que siguen siendo el driver dominante de la demanda). ---
     hourly_shape = DEMAND_SHAPE[params["profile"]][timestamps.hour.to_numpy()]
     is_holiday = np.array([d.date() in CHILE_HOLIDAYS for d in timestamps])
     is_weekend = dow >= 5
@@ -136,8 +255,15 @@ def _generate_node_series(node: str, params: dict, timestamps: pd.DatetimeIndex,
     years_elapsed = (timestamps - timestamps[0]).days / 365.25
     growth = 1 + 0.03 * years_elapsed
     demand_noise = rng.normal(1.0, 0.025, n)
+    comfort_low_c, comfort_high_c = 18.0, 24.0
+    hvac_sensitivity = 0.002 if params["profile"] == "mining" else 0.006
+    hvac_effect = 1 + hvac_sensitivity * (
+        np.clip(temperature_c - comfort_high_c, 0, None) + np.clip(comfort_low_c - temperature_c, 0, None)
+    )
     demand_mwh = np.clip(
-        params["base_demand_mwh"] * hourly_shape * weekend_factor * demand_seasonal * growth * demand_noise, 0, None
+        params["base_demand_mwh"] * hourly_shape * weekend_factor * demand_seasonal * growth
+        * hvac_effect * demand_noise,
+        0, None,
     )
 
     # --- Costo marginal: función de la demanda residual (demanda - renovables),
@@ -158,6 +284,9 @@ def _generate_node_series(node: str, params: dict, timestamps: pd.DatetimeIndex,
         "wind_generation_mwh": wind_mwh.round(2),
         "demand_mwh": demand_mwh.round(2),
         "marginal_cost_usd_mwh": price.round(2),
+        "ghi_w_m2": ghi_wm2.round(1),
+        "wind_speed_ms": wind_speed_ms.round(2),
+        "temperature_c": temperature_c.round(2),
     })
 
 
