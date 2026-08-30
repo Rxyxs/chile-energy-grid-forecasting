@@ -10,5 +10,3 @@ __pycache__/
 *.joblib
 optuna_*.db
 .DS_Store
-CLAUDE.md
-.claude/
