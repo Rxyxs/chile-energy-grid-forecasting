@@ -17,6 +17,16 @@ Pronóstico horario multi-target del Sistema Eléctrico Nacional (SEN) de Chile 
 
 El SEN chileno está dominado por energías renovables en sus nodos del norte (una de las mayores irradiancias solares del mundo, en el desierto de Atacama) y cada vez más por generación eólica en el sur. Esto genera una dinámica de mercado real y bien documentada: alta generación renovable en un nodo empuja su costo marginal hacia cero al desplazar generación térmica cara, mientras que un pico de demanda con baja generación renovable lo empuja fuertemente al alza. Pronosticar generación, demanda y precio con anticipación — a nivel de nodo, no solo a nivel de sistema — es lo que le permite a un generador, a un gran consumidor industrial (la minería es una carga relevante en el norte) o a un operador de mercado anticipar su exposición a costos y el riesgo de precios pico, en vez de reaccionar después de que ocurren. Pronosticar las cuatro series (no solo el precio) también importa operacionalmente: un operador de red que programa reservas necesita saber *cuánta* solar/eólica/demanda esperar, no solo cuánto va a costar.
 
+## 1.1 Impacto de Negocio e Indicadores Clave (KPIs)
+
+| Métrica | Resultado | Qué significa |
+|---|---|---|
+| WAPE de generación solar | **3,60%** (vs. 26,95% naive, 19,46% seasonal-naive) | La mayor ventaja de LightGBM -- estructura diurna determinística fuerte que la persistencia no puede explotar |
+| WAPE de demanda | **2,54%** (vs. 4,79% naive) | Casi la mitad del error de la persistencia de 1 hora |
+| WAPE de costo marginal | **5,95%** (vs. 10,26% naive) | Pronóstico de exposición a costos accionable para un generador/gran consumidor |
+| Hallazgo honesto: eólica | Naive (9,93%) le gana por poco a LightGBM (10,31%) | Investigado hasta la causa raíz, no escondido -- la generación eólica aquí es cercana a un random walk mean-reverting puro, donde la persistencia es cercana al óptimo teórico de información |
+| Estabilidad entre modelos (costo marginal) | LightGBM CV 0,051 vs. XGBoost CV 0,133 | ~2,6x más estable a través de folds rodantes de 14 días -- una razón concreta para preferir LightGBM en este target, no solo una preferencia general |
+
 ## 2. Datos
 
 El coordinador eléctrico de Chile (CEN) no expone una API pública simple y gratuita para datos históricos horarios por nodo, así que este proyecto genera **2 años (2024–2025) de datos horarios sintéticos** para 5 nodos/barras reales del SEN, construidos para reproducir la mecánica real del mercado y no solo ruido aleatorio:

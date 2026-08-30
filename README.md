@@ -17,6 +17,16 @@ Hourly multi-target forecasting of Chile's National Electric System (SEN) — so
 
 Chile's SEN is dominated by renewables in its northern nodes (some of the highest solar irradiance in the world, in the Atacama Desert) and increasingly by wind in the south. This creates a real, well-documented market dynamic: high renewable output at a node pushes its marginal cost toward zero by displacing expensive thermal generation, while a demand spike with low renewable output pushes it sharply upward. Forecasting generation, demand, and price ahead of time — at the node level, not just system-wide — is what lets a generator, a large industrial consumer (mining operations are a major load in the north), or a market operator anticipate cost exposure and price-spike risk instead of reacting to it after the fact. Forecasting all four series (not just price) also matters operationally: a grid operator scheduling reserves cares about *how much* solar/wind/demand to expect, not only what it will cost.
 
+## 1.1 Business Impact & Key Performance Indicators
+
+| Metric | Result | What it means |
+|---|---|---|
+| Solar generation WAPE | **3.60%** (vs. 26.95% naive, 19.46% seasonal-naive) | Largest LightGBM edge -- strong deterministic diurnal structure persistence can't exploit |
+| Demand WAPE | **2.54%** (vs. 4.79% naive) | Nearly half the error of 1-hour persistence |
+| Marginal cost WAPE | **5.95%** (vs. 10.26% naive) | Cost-exposure forecasting a generator/large consumer can act on |
+| Honest finding: wind | Naive (9.93%) narrowly beats LightGBM (10.31%) | Root-caused, not hidden -- wind generation here is close to a pure mean-reverting random walk, where persistence is close to information-theoretically optimal |
+| Cross-model stability (marginal cost) | LightGBM CV 0.051 vs. XGBoost CV 0.133 | ~2.6x more stable across rolling 14-day test folds -- a concrete reason to prefer LightGBM for this target, not just a general preference |
+
 ## 2. Data
 
 Chile's grid coordinator (CEN) does not expose a simple, free public API for historical hourly data by node, so this project generates **2 years (2024–2025) of synthetic hourly data** for 5 real SEN nodes/barras, built to reproduce the actual mechanics of the market rather than being random noise:
