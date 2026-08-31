@@ -5,10 +5,12 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![LightGBM](https://img.shields.io/badge/LightGBM-forecaster-0193B0)
 ![XGBoost](https://img.shields.io/badge/XGBoost-stability%20comparison-EB0028)
+![PyTorch](https://img.shields.io/badge/PyTorch-MLP%20%2B%20Huber%20loss-EE4C2C?logo=pytorch&logoColor=white)
+![DuckDB](https://img.shields.io/badge/DuckDB-metrics%20store-FFF000)
 ![Optuna](https://img.shields.io/badge/Optuna-hyperparameter%20tuning-6A5ACD)
 ![Polars](https://img.shields.io/badge/Polars-feature%20engineering-CD792C)
 ![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
-![pytest](https://img.shields.io/badge/pytest-30%20passing-0A9EDC?logo=pytest&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-42%20passing-0A9EDC?logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 Hourly multi-target forecasting of Chile's National Electric System (SEN) — solar generation, wind generation, demand, and marginal cost (spot price) — for 5 real 220kV nodes, with LightGBM models tuned via Optuna, validated walk-forward against naive/seasonal baselines, real weather-driven features (solar irradiance, wind speed, temperature) closing the causal gap between weather and renewable output, a Rolling-Origin CV stability comparison against XGBoost, a recursive multi-step-ahead forecasting engine, and a Streamlit monitoring dashboard.
@@ -55,8 +57,11 @@ flowchart LR
     A["fetch_energy_data.py\nsynthetic SEN generator\n+ weather (GHI/wind/temp)"] -->|"data/raw/sen_hourly_data.csv"| B["build_features.py\nPolars feature engineering\n+ weather lags"]
     B -->|"data/processed/sen_features.parquet"| C["train_forecaster.py\nOptuna tuning + LightGBM\nx4 targets + baselines"]
     B --> G["rolling_stability.py\nRolling-Origin CV\nLightGBM vs XGBoost"]
+    B --> H["torch_forecaster.py\nPyTorch MLP + Huber loss\nReLU/GELU/Swish"]
     C -->|"forecaster_&lt;target&gt;.joblib x4\nforecaster_metrics.json"| D["forecast.py\nrecursive multi-step CLI"]
     C --> E["dashboard.py\nStreamlit + Plotly"]
+    H --> I["generate_torch_report.py\nplots + metrics.duckdb"]
+    G --> I
     D --> E
 ```
 
@@ -124,6 +129,27 @@ CV = coefficient of variation (std/mean) of fold WAPE — lower means more stabl
 
 The Streamlit dashboard's historical panel shows real vs. forecasted price on the last fold's out-of-sample test set — genuine held-out predictions, not in-sample fit — and a separate live panel runs the actual recursive multi-step forecaster on hours that don't exist in the dataset at all.
 
+### 5.4 A third modeling family: PyTorch MLP vs. LightGBM/XGBoost, and ReLU vs. GELU vs. Swish
+
+`src/models/torch_forecaster.py` adds a third, architecturally distinct approach on top of the statistical baselines (§5.1) and the two tree ensembles (§5.1/§5.3): a dense MLP (two hidden layers, 64→32 units) over the exact same window-lag/rolling feature set the tree models use — same walk-forward folds (`validation.get_walk_forward_folds`), same WAPE/MAE metric, so the comparison is direct. Two things this model adds that the tree models don't have:
+
+- **A custom Huber loss** (`torch_forecaster.huber_loss`, quadratic for small residuals, linear beyond `delta=1.0`), more robust to `marginal_cost_usd_mwh`'s supply-stress price spikes than the MSE-style objective a `LGBMRegressor`/`XGBRegressor` uses by default.
+- **A controlled activation comparison** — ReLU, GELU, and Swish (`nn.SiLU`), architecture/optimizer/seed held fixed so the only thing that changes between runs is the non-linearity (`compare_activations`).
+
+Walk-forward validation, 5 folds, target `marginal_cost_usd_mwh` (`python -m src.models.generate_torch_report`, real run, seed 42, CPU):
+
+| Model | WAPE | MAE | Inference latency (ms / 1k rows) |
+|---|---|---|---|
+| Naive (1h persistence) | 10.26% | $9.09/MWh | -- |
+| Seasonal naive (24h) | 12.08% | $10.70/MWh | -- |
+| LightGBM (Optuna-tuned params) | 6.26% | $5.54/MWh | -- |
+| XGBoost | 7.06% | $6.27/MWh | -- |
+| MLP PyTorch — ReLU | 5.59% | $4.95/MWh | 0.55 |
+| MLP PyTorch — GELU | 5.44% | $4.82/MWh | 0.50 |
+| **MLP PyTorch — Swish** | **5.42%** | **$4.80/MWh** | 0.48 |
+
+**On this target, the PyTorch MLP beats both tree ensembles under all three activations**, and Swish narrowly edges out GELU and ReLU — consistent with Swish/GELU's typical edge over ReLU on this kind of smooth tabular regression, though the three stay close enough (5.42%–5.59%) that architecture and loss (Huber vs. tree-default MSE) plausibly matter more here than the specific activation choice. Metrics/predictions are persisted to `data/processed/metrics.duckdb` (table `model_comparison`, one row per model/variant) alongside the per-fold JSON detail in `torch_forecaster_metrics.json`; explanatory plots (predicted-vs-actual, residual histogram, loss/epoch, activation comparison bar chart) are written to `data/processed/torch_*.png`.
+
 ## 6. Multi-step forecasting example
 
 ```bash
@@ -136,7 +162,7 @@ Real output (mining-profile node, forecast starting at local midnight): solar ou
 
 ## 7. Tech stack
 
-Python · Polars · pandas · NumPy · LightGBM · XGBoost · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (notebook) · pytest (30 tests: feature-leakage checks, weather-lag correctness, fold-splitting invariants for both walk-forward and Rolling-Origin CV, baseline correctness, end-to-end recursive-forecast validation, dashboard smoke test via `streamlit.testing.v1.AppTest`)
+Python · Polars · pandas · NumPy · LightGBM · XGBoost · **PyTorch** (MLP, custom Huber loss, ReLU/GELU/Swish) · **DuckDB** (comparative metrics store) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (notebook) · pytest (42 tests: feature-leakage checks, weather-lag correctness, fold-splitting invariants for both walk-forward and Rolling-Origin CV, baseline correctness, end-to-end recursive-forecast validation, dashboard smoke test via `streamlit.testing.v1.AppTest`, PyTorch MLP/Huber-loss/activation-comparison tests, DuckDB metrics-store round-trip)
 
 ## 8. Getting started
 
@@ -151,6 +177,9 @@ python -m src.models.train_forecaster      # Optuna tuning + walk-forward train/
 # optional: --trials N (default 20) --splits N (default 5)
 
 python -m src.models.rolling_stability     # Rolling-Origin CV, LightGBM vs XGBoost, all 4 targets
+
+python -m src.models.generate_torch_report  # PyTorch MLP (Huber loss, ReLU/GELU/Swish) vs LightGBM/XGBoost
+                                             # -> plots + data/processed/metrics.duckdb
 
 python -m src.models.forecast --horizon 24 --nodes all   # recursive N-hour-ahead forecast (CLI)
 streamlit run src/app/dashboard.py                        # launch the monitoring dashboard
@@ -170,11 +199,16 @@ src/
               baselines.py            naive / seasonal-naive reference metrics
               train_forecaster.py     Optuna tuning + LightGBM, 4 targets
               rolling_stability.py    Rolling-Origin CV, LightGBM vs XGBoost temporal stability
+              torch_forecaster.py     PyTorch MLP, custom Huber loss, ReLU/GELU/Swish comparison
+              torch_plots.py          predicted-vs-actual / residuals / loss-curve / activation plots
+              metrics_db.py           DuckDB comparative metrics store (model_comparison table)
+              generate_torch_report.py  orchestrates MLP training + plots + DuckDB persistence
               forecast.py             recursive multi-step-ahead CLI
   app/        dashboard.py            Streamlit monitoring + live-forecast dashboard
 notebooks/    02_Weather_Augmented_Rolling_CV.ipynb   weather-feature ablation + stability analysis
 tests/                                pytest: features, validation, baselines, forecast, dashboard,
-                                       rolling stability, feature-column exclusion
+                                       rolling stability, feature-column exclusion, PyTorch MLP/loss/
+                                       activations, DuckDB metrics store
 ```
 
 ## 10. Author

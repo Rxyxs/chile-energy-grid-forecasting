@@ -9,6 +9,12 @@ scikit-learn
 optuna
 joblib
 
+# 3er enfoque de modelado: MLP en PyTorch con loss custom (Huber) y
+# comparación de activaciones ReLU/GELU/Swish (src/models/torch_forecaster.py).
+# CPU-only: pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch
+duckdb
+
 # Dashboard
 streamlit
 plotly

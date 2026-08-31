@@ -5,10 +5,12 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![LightGBM](https://img.shields.io/badge/LightGBM-forecaster-0193B0)
 ![XGBoost](https://img.shields.io/badge/XGBoost-comparaci%C3%B3n%20de%20estabilidad-EB0028)
+![PyTorch](https://img.shields.io/badge/PyTorch-MLP%20%2B%20loss%20Huber-EE4C2C?logo=pytorch&logoColor=white)
+![DuckDB](https://img.shields.io/badge/DuckDB-almac%C3%A9n%20de%20m%C3%A9tricas-FFF000)
 ![Optuna](https://img.shields.io/badge/Optuna-tuning%20de%20hiperpar%C3%A1metros-6A5ACD)
 ![Polars](https://img.shields.io/badge/Polars-feature%20engineering-CD792C)
 ![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
-![pytest](https://img.shields.io/badge/pytest-30%20passing-0A9EDC?logo=pytest&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-42%20passing-0A9EDC?logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 Pronóstico horario multi-target del Sistema Eléctrico Nacional (SEN) de Chile — generación solar, generación eólica, demanda y costo marginal (precio spot) — para 5 nodos reales de 220kV, con modelos LightGBM ajustados vía Optuna, validados walk-forward contra baselines naive/estacional, features meteorológicas reales (radiación solar, viento, temperatura) que cierran la brecha causal entre el clima y la generación renovable, una comparación de estabilidad vía Rolling-Origin CV contra XGBoost, un motor de pronóstico recursivo multi-step, y un dashboard de monitoreo en Streamlit.
@@ -55,8 +57,11 @@ flowchart LR
     A["fetch_energy_data.py\ngenerador sintético del SEN\n+ clima (GHI/viento/temp)"] -->|"data/raw/sen_hourly_data.csv"| B["build_features.py\nfeature engineering en Polars\n+ lags de clima"]
     B -->|"data/processed/sen_features.parquet"| C["train_forecaster.py\ntuning Optuna + LightGBM\nx4 targets + baselines"]
     B --> G["rolling_stability.py\nRolling-Origin CV\nLightGBM vs XGBoost"]
+    B --> H["torch_forecaster.py\nMLP PyTorch + loss Huber\nReLU/GELU/Swish"]
     C -->|"forecaster_&lt;target&gt;.joblib x4\nforecaster_metrics.json"| D["forecast.py\nCLI de pronóstico recursivo"]
     C --> E["dashboard.py\nStreamlit + Plotly"]
+    H --> I["generate_torch_report.py\ngráficos + metrics.duckdb"]
+    G --> I
     D --> E
 ```
 
@@ -124,6 +129,27 @@ CV = coeficiente de variación (desvío/media) del WAPE entre folds — más baj
 
 El panel histórico del dashboard de Streamlit muestra precio real vs. pronosticado sobre el set de test fuera de muestra del último fold — predicciones genuinas, no ajuste dentro de muestra — y un panel separado corre el pronosticador recursivo multi-step real sobre horas que ni siquiera existen en el dataset.
 
+### 5.4 Un tercer enfoque de modelado: MLP en PyTorch vs. LightGBM/XGBoost, y ReLU vs. GELU vs. Swish
+
+`src/models/torch_forecaster.py` agrega un tercer enfoque, arquitectónicamente distinto, encima de los baselines estadísticos (§5.1) y los dos ensambles de árboles (§5.1/§5.3): un MLP denso (dos capas ocultas, 64→32 unidades) sobre exactamente el mismo set de features de ventana (lags/rolling) que usan los modelos de árboles — mismos folds walk-forward (`validation.get_walk_forward_folds`), misma métrica WAPE/MAE, para que la comparación sea directa. Dos cosas que este modelo agrega y los de árboles no tenían:
+
+- **Una loss Huber custom** (`torch_forecaster.huber_loss`, cuadrática para residuos chicos, lineal más allá de `delta=1.0`), más robusta a los spikes de precio por estrés de oferta de `marginal_cost_usd_mwh` que el objetivo estilo MSE que usa por defecto un `LGBMRegressor`/`XGBRegressor`.
+- **Una comparación controlada de función de activación** — ReLU, GELU y Swish (`nn.SiLU`), con arquitectura/optimizador/seed fijos para que lo único que cambie entre corridas sea la no-linealidad (`compare_activations`).
+
+Validación walk-forward, 5 folds, target `marginal_cost_usd_mwh` (`python -m src.models.generate_torch_report`, corrida real, seed 42, CPU):
+
+| Modelo | WAPE | MAE | Latencia de inferencia (ms / 1k filas) |
+|---|---|---|---|
+| Naive (persistencia 1h) | 10,26% | $9,09/MWh | -- |
+| Estacional (persistencia 24h) | 12,08% | $10,70/MWh | -- |
+| LightGBM (parámetros ajustados con Optuna) | 6,26% | $5,54/MWh | -- |
+| XGBoost | 7,06% | $6,27/MWh | -- |
+| MLP PyTorch — ReLU | 5,59% | $4,95/MWh | 0,55 |
+| MLP PyTorch — GELU | 5,44% | $4,82/MWh | 0,50 |
+| **MLP PyTorch — Swish** | **5,42%** | **$4,80/MWh** | 0,48 |
+
+**En este target, el MLP de PyTorch supera a ambos ensambles de árboles bajo las tres activaciones**, y Swish le gana por poco a GELU y ReLU — consistente con la ventaja típica de Swish/GELU sobre ReLU en este tipo de regresión tabular suave, aunque las tres quedan lo bastante cerca (5,42%-5,59%) como para que la arquitectura y la loss (Huber vs. MSE por defecto de los árboles) probablemente importen más acá que la activación específica. Las métricas/predicciones se persisten en `data/processed/metrics.duckdb` (tabla `model_comparison`, una fila por modelo/variante) junto al detalle por fold en `torch_forecaster_metrics.json`; los gráficos explicativos (predicho vs. real, histograma de residuos, loss por época, comparación de activaciones) se guardan en `data/processed/torch_*.png`.
+
 ## 6. Ejemplo de pronóstico multi-step
 
 ```bash
@@ -136,7 +162,7 @@ Salida real (nodo de perfil minero, pronóstico desde medianoche local): la gene
 
 ## 7. Stack tecnológico
 
-Python · Polars · pandas · NumPy · LightGBM · XGBoost · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (notebook) · pytest (30 tests: chequeos de fuga de features, correctitud de lags meteorológicos, invariantes de partición de folds tanto para walk-forward como Rolling-Origin CV, corrección de baselines, validación end-to-end del pronóstico recursivo, smoke test del dashboard vía `streamlit.testing.v1.AppTest`)
+Python · Polars · pandas · NumPy · LightGBM · XGBoost · **PyTorch** (MLP, loss Huber custom, ReLU/GELU/Swish) · **DuckDB** (almacén comparativo de métricas) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (notebook) · pytest (42 tests: chequeos de fuga de features, correctitud de lags meteorológicos, invariantes de partición de folds tanto para walk-forward como Rolling-Origin CV, corrección de baselines, validación end-to-end del pronóstico recursivo, smoke test del dashboard vía `streamlit.testing.v1.AppTest`, tests del MLP PyTorch/loss Huber/comparación de activaciones, round-trip del almacén de métricas DuckDB)
 
 ## 8. Cómo ejecutar
 
@@ -151,6 +177,9 @@ python -m src.models.train_forecaster      # tuning Optuna + entrenar/validar wa
 # opcional: --trials N (default 20) --splits N (default 5)
 
 python -m src.models.rolling_stability     # Rolling-Origin CV, LightGBM vs XGBoost, los 4 targets
+
+python -m src.models.generate_torch_report  # MLP PyTorch (loss Huber, ReLU/GELU/Swish) vs LightGBM/XGBoost
+                                             # -> gráficos + data/processed/metrics.duckdb
 
 python -m src.models.forecast --horizon 24 --nodes all   # pronóstico recursivo a N horas (CLI)
 streamlit run src/app/dashboard.py                        # levantar el dashboard de monitoreo
@@ -170,11 +199,16 @@ src/
               baselines.py            métricas de referencia naive / estacional
               train_forecaster.py     tuning Optuna + LightGBM, 4 targets
               rolling_stability.py    Rolling-Origin CV, estabilidad temporal LightGBM vs XGBoost
+              torch_forecaster.py     MLP PyTorch, loss Huber custom, comparación ReLU/GELU/Swish
+              torch_plots.py          gráficos de predicho-vs-real / residuos / loss-por-época / activaciones
+              metrics_db.py           almacén comparativo de métricas en DuckDB (tabla model_comparison)
+              generate_torch_report.py  orquesta entrenamiento MLP + gráficos + persistencia DuckDB
               forecast.py             CLI de pronóstico recursivo multi-step
   app/        dashboard.py            dashboard de monitoreo + pronóstico en vivo, en Streamlit
 notebooks/    02_Weather_Augmented_Rolling_CV.ipynb   ablación de features de clima + análisis de estabilidad
 tests/                                pytest: features, validación, baselines, forecast, dashboard,
-                                       estabilidad rolling, exclusión de columnas de features
+                                       estabilidad rolling, exclusión de columnas de features, MLP PyTorch/
+                                       loss/activaciones, almacén de métricas DuckDB
 ```
 
 ## 10. Autor
