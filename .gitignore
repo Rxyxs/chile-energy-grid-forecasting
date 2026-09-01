@@ -4,9 +4,10 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 .env
-/data/
+/data/raw/
 *.csv
 *.parquet
 *.joblib
+*.duckdb
 optuna_*.db
 .DS_Store

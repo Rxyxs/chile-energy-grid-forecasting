@@ -1,0 +1,814 @@
+{
+  "solar_generation_mwh": {
+    "tuning": {
+      "best_params": {
+        "n_estimators": 450,
+        "learning_rate": 0.02564794636612556,
+        "num_leaves": 53,
+        "max_depth": 9,
+        "min_child_samples": 5,
+        "feature_fraction": 0.7066034398037692,
+        "bagging_fraction": 0.834657076165972,
+        "bagging_freq": 2,
+        "reg_alpha": 1.5258427356571302,
+        "reg_lambda": 0.17190837063546885
+      },
+      "best_tuning_wape": 3.365271640171603,
+      "n_trials": 20
+    },
+    "lightgbm": {
+      "target_column": "solar_generation_mwh",
+      "feature_columns": [
+        "node",
+        "solar_generation_mwh_lag_1h",
+        "solar_generation_mwh_lag_24h",
+        "solar_generation_mwh_lag_168h",
+        "wind_generation_mwh_lag_1h",
+        "wind_generation_mwh_lag_24h",
+        "wind_generation_mwh_lag_168h",
+        "demand_mwh_lag_1h",
+        "demand_mwh_lag_24h",
+        "demand_mwh_lag_168h",
+        "marginal_cost_usd_mwh_lag_1h",
+        "marginal_cost_usd_mwh_lag_24h",
+        "marginal_cost_usd_mwh_lag_168h",
+        "ghi_w_m2_lag_1h",
+        "ghi_w_m2_lag_3h",
+        "ghi_w_m2_lag_6h",
+        "ghi_w_m2_lag_24h",
+        "wind_speed_ms_lag_1h",
+        "wind_speed_ms_lag_3h",
+        "wind_speed_ms_lag_6h",
+        "wind_speed_ms_lag_24h",
+        "temperature_c_lag_1h",
+        "temperature_c_lag_3h",
+        "temperature_c_lag_6h",
+        "temperature_c_lag_24h",
+        "solar_generation_mwh_rolling_mean_6h",
+        "solar_generation_mwh_rolling_std_6h",
+        "solar_generation_mwh_rolling_mean_24h",
+        "solar_generation_mwh_rolling_std_24h",
+        "wind_generation_mwh_rolling_mean_6h",
+        "wind_generation_mwh_rolling_std_6h",
+        "wind_generation_mwh_rolling_mean_24h",
+        "wind_generation_mwh_rolling_std_24h",
+        "demand_mwh_rolling_mean_6h",
+        "demand_mwh_rolling_std_6h",
+        "demand_mwh_rolling_mean_24h",
+        "demand_mwh_rolling_std_24h",
+        "marginal_cost_usd_mwh_rolling_mean_6h",
+        "marginal_cost_usd_mwh_rolling_std_6h",
+        "marginal_cost_usd_mwh_rolling_mean_24h",
+        "marginal_cost_usd_mwh_rolling_std_24h",
+        "hour_sin",
+        "hour_cos",
+        "month_sin",
+        "month_cos",
+        "day_of_week",
+        "is_weekend",
+        "is_holiday"
+      ],
+      "categorical_features": [
+        "node"
+      ],
+      "n_splits": 5,
+      "lgbm_params": {
+        "verbosity": -1,
+        "n_estimators": 450,
+        "learning_rate": 0.02564794636612556,
+        "num_leaves": 53,
+        "max_depth": 9,
+        "min_child_samples": 5,
+        "feature_fraction": 0.7066034398037692,
+        "bagging_fraction": 0.834657076165972,
+        "bagging_freq": 2,
+        "reg_alpha": 1.5258427356571302,
+        "reg_lambda": 0.17190837063546885
+      },
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "train_rows": 14480,
+          "test_rows": 14480,
+          "wape": 4.67587174756258,
+          "mae": 1.3104776411183297
+        },
+        {
+          "fold": 1,
+          "train_rows": 28960,
+          "test_rows": 14480,
+          "wape": 3.8548335607957536,
+          "mae": 1.4789357802292178
+        },
+        {
+          "fold": 2,
+          "train_rows": 43440,
+          "test_rows": 14480,
+          "wape": 3.1791132081043414,
+          "mae": 1.1448162962653492
+        },
+        {
+          "fold": 3,
+          "train_rows": 57920,
+          "test_rows": 14480,
+          "wape": 3.2202409796750833,
+          "mae": 0.9066967434810375
+        },
+        {
+          "fold": 4,
+          "train_rows": 72400,
+          "test_rows": 14480,
+          "wape": 3.0855360614809526,
+          "mae": 1.1854540050616873
+        }
+      ],
+      "mean_wape": 3.6031191115237418,
+      "mean_mae": 1.2052760932311242
+    },
+    "naive_baseline": {
+      "method": "solar_generation_mwh_lag_1h",
+      "n_splits": 5,
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "test_rows": 14615,
+          "wape": 29.29595606618311,
+          "mae": 8.234241532671913
+        },
+        {
+          "fold": 1,
+          "test_rows": 14615,
+          "wape": 25.123769234101673,
+          "mae": 9.555126924392747
+        },
+        {
+          "fold": 2,
+          "test_rows": 14615,
+          "wape": 25.90976483743748,
+          "mae": 9.351938419432091
+        },
+        {
+          "fold": 3,
+          "test_rows": 14615,
+          "wape": 29.286733801579828,
+          "mae": 8.29141840574752
+        },
+        {
+          "fold": 4,
+          "test_rows": 14615,
+          "wape": 25.146884362944554,
+          "mae": 9.635540198426275
+        }
+      ],
+      "mean_wape": 26.95262166044933,
+      "mean_mae": 9.01365309613411
+    },
+    "seasonal_naive_baseline": {
+      "method": "solar_generation_mwh_lag_24h",
+      "n_splits": 5,
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "test_rows": 14600,
+          "wape": 20.431465023250322,
+          "mae": 5.701651369863014
+        },
+        {
+          "fold": 1,
+          "test_rows": 14600,
+          "wape": 19.101593818888933,
+          "mae": 7.285393150684932
+        },
+        {
+          "fold": 2,
+          "test_rows": 14600,
+          "wape": 19.785952125237817,
+          "mae": 7.169062328767123
+        },
+        {
+          "fold": 3,
+          "test_rows": 14600,
+          "wape": 18.759781232065762,
+          "mae": 5.284341780821918
+        },
+        {
+          "fold": 4,
+          "test_rows": 14600,
+          "wape": 19.2134673099475,
+          "mae": 7.367941095890411
+        }
+      ],
+      "mean_wape": 19.458451901878068,
+      "mean_mae": 6.56167794520548
+    }
+  },
+  "wind_generation_mwh": {
+    "tuning": {
+      "best_params": {
+        "n_estimators": 500,
+        "learning_rate": 0.018135730867783396,
+        "num_leaves": 15,
+        "max_depth": 9,
+        "min_child_samples": 72,
+        "feature_fraction": 0.8916028672163949,
+        "bagging_fraction": 0.9085081386743783,
+        "bagging_freq": 1,
+        "reg_alpha": 0.02715581955282941,
+        "reg_lambda": 0.0029072088906598446
+      },
+      "best_tuning_wape": 10.252718601036621,
+      "n_trials": 20
+    },
+    "lightgbm": {
+      "target_column": "wind_generation_mwh",
+      "feature_columns": [
+        "node",
+        "solar_generation_mwh_lag_1h",
+        "solar_generation_mwh_lag_24h",
+        "solar_generation_mwh_lag_168h",
+        "wind_generation_mwh_lag_1h",
+        "wind_generation_mwh_lag_24h",
+        "wind_generation_mwh_lag_168h",
+        "demand_mwh_lag_1h",
+        "demand_mwh_lag_24h",
+        "demand_mwh_lag_168h",
+        "marginal_cost_usd_mwh_lag_1h",
+        "marginal_cost_usd_mwh_lag_24h",
+        "marginal_cost_usd_mwh_lag_168h",
+        "ghi_w_m2_lag_1h",
+        "ghi_w_m2_lag_3h",
+        "ghi_w_m2_lag_6h",
+        "ghi_w_m2_lag_24h",
+        "wind_speed_ms_lag_1h",
+        "wind_speed_ms_lag_3h",
+        "wind_speed_ms_lag_6h",
+        "wind_speed_ms_lag_24h",
+        "temperature_c_lag_1h",
+        "temperature_c_lag_3h",
+        "temperature_c_lag_6h",
+        "temperature_c_lag_24h",
+        "solar_generation_mwh_rolling_mean_6h",
+        "solar_generation_mwh_rolling_std_6h",
+        "solar_generation_mwh_rolling_mean_24h",
+        "solar_generation_mwh_rolling_std_24h",
+        "wind_generation_mwh_rolling_mean_6h",
+        "wind_generation_mwh_rolling_std_6h",
+        "wind_generation_mwh_rolling_mean_24h",
+        "wind_generation_mwh_rolling_std_24h",
+        "demand_mwh_rolling_mean_6h",
+        "demand_mwh_rolling_std_6h",
+        "demand_mwh_rolling_mean_24h",
+        "demand_mwh_rolling_std_24h",
+        "marginal_cost_usd_mwh_rolling_mean_6h",
+        "marginal_cost_usd_mwh_rolling_std_6h",
+        "marginal_cost_usd_mwh_rolling_mean_24h",
+        "marginal_cost_usd_mwh_rolling_std_24h",
+        "hour_sin",
+        "hour_cos",
+        "month_sin",
+        "month_cos",
+        "day_of_week",
+        "is_weekend",
+        "is_holiday"
+      ],
+      "categorical_features": [
+        "node"
+      ],
+      "n_splits": 5,
+      "lgbm_params": {
+        "verbosity": -1,
+        "n_estimators": 500,
+        "learning_rate": 0.018135730867783396,
+        "num_leaves": 15,
+        "max_depth": 9,
+        "min_child_samples": 72,
+        "feature_fraction": 0.8916028672163949,
+        "bagging_fraction": 0.9085081386743783,
+        "bagging_freq": 1,
+        "reg_alpha": 0.02715581955282941,
+        "reg_lambda": 0.0029072088906598446
+      },
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "train_rows": 14480,
+          "test_rows": 14480,
+          "wape": 10.25529582796609,
+          "mae": 2.429128578564204
+        },
+        {
+          "fold": 1,
+          "train_rows": 28960,
+          "test_rows": 14480,
+          "wape": 10.569157679571685,
+          "mae": 1.9609407140145045
+        },
+        {
+          "fold": 2,
+          "train_rows": 43440,
+          "test_rows": 14480,
+          "wape": 9.984631560050138,
+          "mae": 2.0363583664352514
+        },
+        {
+          "fold": 3,
+          "train_rows": 57920,
+          "test_rows": 14480,
+          "wape": 10.548309078359772,
+          "mae": 2.322530408092612
+        },
+        {
+          "fold": 4,
+          "train_rows": 72400,
+          "test_rows": 14480,
+          "wape": 10.193866657529954,
+          "mae": 1.8934265336767804
+        }
+      ],
+      "mean_wape": 10.310252160695528,
+      "mean_mae": 2.128476920156671
+    },
+    "naive_baseline": {
+      "method": "wind_generation_mwh_lag_1h",
+      "n_splits": 5,
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "test_rows": 14615,
+          "wape": 9.480364118775302,
+          "mae": 2.2205261717413616
+        },
+        {
+          "fold": 1,
+          "test_rows": 14615,
+          "wape": 10.271134856708192,
+          "mae": 1.9278200478959973
+        },
+        {
+          "fold": 2,
+          "test_rows": 14615,
+          "wape": 9.647648729620947,
+          "mae": 1.9699315771467671
+        },
+        {
+          "fold": 3,
+          "test_rows": 14615,
+          "wape": 10.35372514894006,
+          "mae": 2.2737789941840574
+        },
+        {
+          "fold": 4,
+          "test_rows": 14615,
+          "wape": 9.902175333659443,
+          "mae": 1.8356640437906262
+        }
+      ],
+      "mean_wape": 9.931009637540788,
+      "mean_mae": 2.0455441669517618
+    },
+    "seasonal_naive_baseline": {
+      "method": "wind_generation_mwh_lag_24h",
+      "n_splits": 5,
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "test_rows": 14600,
+          "wape": 43.02445416541655,
+          "mae": 10.085218493150686
+        },
+        {
+          "fold": 1,
+          "test_rows": 14600,
+          "wape": 46.237955436003226,
+          "mae": 8.673529452054794
+        },
+        {
+          "fold": 2,
+          "test_rows": 14600,
+          "wape": 43.97398699624871,
+          "mae": 8.979084246575344
+        },
+        {
+          "fold": 3,
+          "test_rows": 14600,
+          "wape": 45.81534248424386,
+          "mae": 10.061797945205479
+        },
+        {
+          "fold": 4,
+          "test_rows": 14600,
+          "wape": 45.406891584004825,
+          "mae": 8.421075342465754
+        }
+      ],
+      "mean_wape": 44.89172613318343,
+      "mean_mae": 9.244141095890411
+    }
+  },
+  "demand_mwh": {
+    "tuning": {
+      "best_params": {
+        "n_estimators": 400,
+        "learning_rate": 0.0623959001013429,
+        "num_leaves": 44,
+        "max_depth": 8,
+        "min_child_samples": 47,
+        "feature_fraction": 0.80112308225968,
+        "bagging_fraction": 0.7938863093296036,
+        "bagging_freq": 3,
+        "reg_alpha": 2.302230307837834,
+        "reg_lambda": 2.745361258452295
+      },
+      "best_tuning_wape": 2.483654949951497,
+      "n_trials": 20
+    },
+    "lightgbm": {
+      "target_column": "demand_mwh",
+      "feature_columns": [
+        "node",
+        "solar_generation_mwh_lag_1h",
+        "solar_generation_mwh_lag_24h",
+        "solar_generation_mwh_lag_168h",
+        "wind_generation_mwh_lag_1h",
+        "wind_generation_mwh_lag_24h",
+        "wind_generation_mwh_lag_168h",
+        "demand_mwh_lag_1h",
+        "demand_mwh_lag_24h",
+        "demand_mwh_lag_168h",
+        "marginal_cost_usd_mwh_lag_1h",
+        "marginal_cost_usd_mwh_lag_24h",
+        "marginal_cost_usd_mwh_lag_168h",
+        "ghi_w_m2_lag_1h",
+        "ghi_w_m2_lag_3h",
+        "ghi_w_m2_lag_6h",
+        "ghi_w_m2_lag_24h",
+        "wind_speed_ms_lag_1h",
+        "wind_speed_ms_lag_3h",
+        "wind_speed_ms_lag_6h",
+        "wind_speed_ms_lag_24h",
+        "temperature_c_lag_1h",
+        "temperature_c_lag_3h",
+        "temperature_c_lag_6h",
+        "temperature_c_lag_24h",
+        "solar_generation_mwh_rolling_mean_6h",
+        "solar_generation_mwh_rolling_std_6h",
+        "solar_generation_mwh_rolling_mean_24h",
+        "solar_generation_mwh_rolling_std_24h",
+        "wind_generation_mwh_rolling_mean_6h",
+        "wind_generation_mwh_rolling_std_6h",
+        "wind_generation_mwh_rolling_mean_24h",
+        "wind_generation_mwh_rolling_std_24h",
+        "demand_mwh_rolling_mean_6h",
+        "demand_mwh_rolling_std_6h",
+        "demand_mwh_rolling_mean_24h",
+        "demand_mwh_rolling_std_24h",
+        "marginal_cost_usd_mwh_rolling_mean_6h",
+        "marginal_cost_usd_mwh_rolling_std_6h",
+        "marginal_cost_usd_mwh_rolling_mean_24h",
+        "marginal_cost_usd_mwh_rolling_std_24h",
+        "hour_sin",
+        "hour_cos",
+        "month_sin",
+        "month_cos",
+        "day_of_week",
+        "is_weekend",
+        "is_holiday"
+      ],
+      "categorical_features": [
+        "node"
+      ],
+      "n_splits": 5,
+      "lgbm_params": {
+        "verbosity": -1,
+        "n_estimators": 400,
+        "learning_rate": 0.0623959001013429,
+        "num_leaves": 44,
+        "max_depth": 8,
+        "min_child_samples": 47,
+        "feature_fraction": 0.80112308225968,
+        "bagging_fraction": 0.7938863093296036,
+        "bagging_freq": 3,
+        "reg_alpha": 2.302230307837834,
+        "reg_lambda": 2.745361258452295
+      },
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "train_rows": 14480,
+          "test_rows": 14480,
+          "wape": 2.822950934865608,
+          "mae": 4.882598629725934
+        },
+        {
+          "fold": 1,
+          "train_rows": 28960,
+          "test_rows": 14480,
+          "wape": 2.5568768584307136,
+          "mae": 4.104534290730961
+        },
+        {
+          "fold": 2,
+          "train_rows": 43440,
+          "test_rows": 14480,
+          "wape": 2.415959786380193,
+          "mae": 3.9737137280829544
+        },
+        {
+          "fold": 3,
+          "train_rows": 57920,
+          "test_rows": 14480,
+          "wape": 2.506967912144322,
+          "mae": 4.463089754735528
+        },
+        {
+          "fold": 4,
+          "train_rows": 72400,
+          "test_rows": 14480,
+          "wape": 2.3923434781572777,
+          "mae": 3.9696134680927333
+        }
+      ],
+      "mean_wape": 2.5390197939956227,
+      "mean_mae": 4.278709974273622
+    },
+    "naive_baseline": {
+      "method": "demand_mwh_lag_1h",
+      "n_splits": 5,
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "test_rows": 14615,
+          "wape": 4.796834792633007,
+          "mae": 8.292138214163531
+        },
+        {
+          "fold": 1,
+          "test_rows": 14615,
+          "wape": 4.7893741905123655,
+          "mae": 7.704975709887102
+        },
+        {
+          "fold": 2,
+          "test_rows": 14615,
+          "wape": 4.819644225997562,
+          "mae": 7.917837837837838
+        },
+        {
+          "fold": 3,
+          "test_rows": 14615,
+          "wape": 4.801418079385436,
+          "mae": 8.537343140608964
+        },
+        {
+          "fold": 4,
+          "test_rows": 14615,
+          "wape": 4.720686918363425,
+          "mae": 7.839164556962025
+        }
+      ],
+      "mean_wape": 4.785591641378359,
+      "mean_mae": 8.058291891891892
+    },
+    "seasonal_naive_baseline": {
+      "method": "demand_mwh_lag_24h",
+      "n_splits": 5,
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "test_rows": 14600,
+          "wape": 5.938428290607008,
+          "mae": 10.259754794520546
+        },
+        {
+          "fold": 1,
+          "test_rows": 14600,
+          "wape": 5.472729386860956,
+          "mae": 8.810077397260274
+        },
+        {
+          "fold": 2,
+          "test_rows": 14600,
+          "wape": 5.452796365915724,
+          "mae": 8.959280821917808
+        },
+        {
+          "fold": 3,
+          "test_rows": 14600,
+          "wape": 5.67715274259942,
+          "mae": 10.092897945205479
+        },
+        {
+          "fold": 4,
+          "test_rows": 14600,
+          "wape": 5.438385674398926,
+          "mae": 9.030530821917809
+        }
+      ],
+      "mean_wape": 5.595898492076406,
+      "mean_mae": 9.430508356164383
+    }
+  },
+  "marginal_cost_usd_mwh": {
+    "tuning": {
+      "best_params": {
+        "n_estimators": 350,
+        "learning_rate": 0.03587191348598343,
+        "num_leaves": 78,
+        "max_depth": 7,
+        "min_child_samples": 100,
+        "feature_fraction": 0.7425482450453098,
+        "bagging_fraction": 0.9980931589734016,
+        "bagging_freq": 3,
+        "reg_alpha": 9.003580033426553,
+        "reg_lambda": 1.112861628007672
+      },
+      "best_tuning_wape": 5.853081516145385,
+      "n_trials": 20
+    },
+    "lightgbm": {
+      "target_column": "marginal_cost_usd_mwh",
+      "feature_columns": [
+        "node",
+        "solar_generation_mwh_lag_1h",
+        "solar_generation_mwh_lag_24h",
+        "solar_generation_mwh_lag_168h",
+        "wind_generation_mwh_lag_1h",
+        "wind_generation_mwh_lag_24h",
+        "wind_generation_mwh_lag_168h",
+        "demand_mwh_lag_1h",
+        "demand_mwh_lag_24h",
+        "demand_mwh_lag_168h",
+        "marginal_cost_usd_mwh_lag_1h",
+        "marginal_cost_usd_mwh_lag_24h",
+        "marginal_cost_usd_mwh_lag_168h",
+        "ghi_w_m2_lag_1h",
+        "ghi_w_m2_lag_3h",
+        "ghi_w_m2_lag_6h",
+        "ghi_w_m2_lag_24h",
+        "wind_speed_ms_lag_1h",
+        "wind_speed_ms_lag_3h",
+        "wind_speed_ms_lag_6h",
+        "wind_speed_ms_lag_24h",
+        "temperature_c_lag_1h",
+        "temperature_c_lag_3h",
+        "temperature_c_lag_6h",
+        "temperature_c_lag_24h",
+        "solar_generation_mwh_rolling_mean_6h",
+        "solar_generation_mwh_rolling_std_6h",
+        "solar_generation_mwh_rolling_mean_24h",
+        "solar_generation_mwh_rolling_std_24h",
+        "wind_generation_mwh_rolling_mean_6h",
+        "wind_generation_mwh_rolling_std_6h",
+        "wind_generation_mwh_rolling_mean_24h",
+        "wind_generation_mwh_rolling_std_24h",
+        "demand_mwh_rolling_mean_6h",
+        "demand_mwh_rolling_std_6h",
+        "demand_mwh_rolling_mean_24h",
+        "demand_mwh_rolling_std_24h",
+        "marginal_cost_usd_mwh_rolling_mean_6h",
+        "marginal_cost_usd_mwh_rolling_std_6h",
+        "marginal_cost_usd_mwh_rolling_mean_24h",
+        "marginal_cost_usd_mwh_rolling_std_24h",
+        "hour_sin",
+        "hour_cos",
+        "month_sin",
+        "month_cos",
+        "day_of_week",
+        "is_weekend",
+        "is_holiday"
+      ],
+      "categorical_features": [
+        "node"
+      ],
+      "n_splits": 5,
+      "lgbm_params": {
+        "verbosity": -1,
+        "n_estimators": 350,
+        "learning_rate": 0.03587191348598343,
+        "num_leaves": 78,
+        "max_depth": 7,
+        "min_child_samples": 100,
+        "feature_fraction": 0.7425482450453098,
+        "bagging_fraction": 0.9980931589734016,
+        "bagging_freq": 3,
+        "reg_alpha": 9.003580033426553,
+        "reg_lambda": 1.112861628007672
+      },
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "train_rows": 14480,
+          "test_rows": 14480,
+          "wape": 6.311941442657806,
+          "mae": 5.7832958155892245
+        },
+        {
+          "fold": 1,
+          "train_rows": 28960,
+          "test_rows": 14480,
+          "wape": 6.16547735186869,
+          "mae": 5.196855312332032
+        },
+        {
+          "fold": 2,
+          "train_rows": 43440,
+          "test_rows": 14480,
+          "wape": 5.912880325673784,
+          "mae": 5.10971284278056
+        },
+        {
+          "fold": 3,
+          "train_rows": 57920,
+          "test_rows": 14480,
+          "wape": 5.486957499043754,
+          "mae": 5.169868536668542
+        },
+        {
+          "fold": 4,
+          "train_rows": 72400,
+          "test_rows": 14480,
+          "wape": 5.851483552123337,
+          "mae": 5.067670500891552
+        }
+      ],
+      "mean_wape": 5.945748034273475,
+      "mean_mae": 5.265480601652382
+    },
+    "naive_baseline": {
+      "method": "marginal_cost_usd_mwh_lag_1h",
+      "n_splits": 5,
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "test_rows": 14615,
+          "wape": 10.093506956015265,
+          "mae": 9.261831679781046
+        },
+        {
+          "fold": 1,
+          "test_rows": 14615,
+          "wape": 10.268437974693205,
+          "mae": 8.67401710571331
+        },
+        {
+          "fold": 2,
+          "test_rows": 14615,
+          "wape": 10.539620195211663,
+          "mae": 9.091965104344851
+        },
+        {
+          "fold": 3,
+          "test_rows": 14615,
+          "wape": 9.792167657144587,
+          "mae": 9.215516250427644
+        },
+        {
+          "fold": 4,
+          "test_rows": 14615,
+          "wape": 10.6008124233715,
+          "mae": 9.192615805679099
+        }
+      ],
+      "mean_wape": 10.258909041287243,
+      "mean_mae": 9.08718918918919
+    },
+    "seasonal_naive_baseline": {
+      "method": "marginal_cost_usd_mwh_lag_24h",
+      "n_splits": 5,
+      "fold_metrics": [
+        {
+          "fold": 0,
+          "test_rows": 14600,
+          "wape": 11.888612437367097,
+          "mae": 10.914623287671233
+        },
+        {
+          "fold": 1,
+          "test_rows": 14600,
+          "wape": 12.187950448186863,
+          "mae": 10.295416438356165
+        },
+        {
+          "fold": 2,
+          "test_rows": 14600,
+          "wape": 12.39847903010282,
+          "mae": 10.688499315068494
+        },
+        {
+          "fold": 3,
+          "test_rows": 14600,
+          "wape": 11.527153794167749,
+          "mae": 10.85463287671233
+        },
+        {
+          "fold": 4,
+          "test_rows": 14600,
+          "wape": 12.408057923928634,
+          "mae": 10.756966438356166
+        }
+      ],
+      "mean_wape": 12.082050726750634,
+      "mean_mae": 10.702027671232877
+    }
+  }
+}
