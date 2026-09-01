@@ -150,6 +150,11 @@ Validación walk-forward, 5 folds, target `marginal_cost_usd_mwh` (`python -m sr
 
 **En este target, el MLP de PyTorch supera a ambos ensambles de árboles bajo las tres activaciones**, y Swish le gana por poco a GELU y ReLU — consistente con la ventaja típica de Swish/GELU sobre ReLU en este tipo de regresión tabular suave, aunque las tres quedan lo bastante cerca (5,42%-5,59%) como para que la arquitectura y la loss (Huber vs. MSE por defecto de los árboles) probablemente importen más acá que la activación específica. Las métricas/predicciones se persisten en `data/processed/metrics.duckdb` (tabla `model_comparison`, una fila por modelo/variante) junto al detalle por fold en `torch_forecaster_metrics.json`; los gráficos explicativos (predicho vs. real, histograma de residuos, loss por época, comparación de activaciones) se guardan en `data/processed/torch_*.png`.
 
+El GIF de abajo reproduce el loss Huber real por época de la corrida Swish (el mismo `final_history` que se usa para el PNG estático), con una etiqueta flotante que muestra el valor actual de train/val a medida que avanza la línea.
+
+![Curva de loss del MLP PyTorch, animada](data/processed/torch_loss_curve_marginal_cost_usd_mwh_animated.gif)
+![Curva de loss del MLP PyTorch](data/processed/torch_loss_curve_marginal_cost_usd_mwh.png)
+
 ## 6. Ejemplo de pronóstico multi-step
 
 ```bash
