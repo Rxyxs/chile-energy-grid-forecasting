@@ -191,6 +191,7 @@ streamlit run src/app/dashboard.py                        # launch the monitorin
 
 python -m pytest tests/ -v                                 # run the test suite
 
+jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda_seasonality_analysis.ipynb
 jupyter nbconvert --to notebook --execute --inplace notebooks/02_Weather_Augmented_Rolling_CV.ipynb
 ```
 
@@ -210,7 +211,10 @@ src/
               generate_torch_report.py  orchestrates MLP training + plots + DuckDB persistence
               forecast.py             recursive multi-step-ahead CLI
   app/        dashboard.py            Streamlit monitoring + live-forecast dashboard
-notebooks/    02_Weather_Augmented_Rolling_CV.ipynb   weather-feature ablation + stability analysis
+notebooks/    01_eda_seasonality_analysis.ipynb       EDA: diurnal/monthly seasonality, per-node demand
+                                                       profiles, duck curve, weather-target correlations,
+                                                       autocorrelation at the lags build_features.py uses
+              02_Weather_Augmented_Rolling_CV.ipynb   weather-feature ablation + stability analysis
 tests/                                pytest: features, validation, baselines, forecast, dashboard,
                                        rolling stability, feature-column exclusion, PyTorch MLP/loss/
                                        activations, DuckDB metrics store
