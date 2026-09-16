@@ -7,6 +7,7 @@ from src.features.build_features import build_features
 from src.models.conformal import (
     cqr_margin,
     evaluate_coverage,
+    rectify_crossing,
     train_conformal_intervals,
     _split_train_calibration,
 )
@@ -28,6 +29,30 @@ def test_split_train_calibration_keeps_calibration_chronologically_last():
     fit_ts, calib_ts = _split_train_calibration(train_ts, calibration_fraction=0.2)
 
     assert max(fit_ts) < min(calib_ts)
+
+
+def test_rectify_crossing_swaps_only_the_inverted_rows():
+    """Encontrado corriendo forecast.py de verdad: dos cuantiles entrenados por
+    separado pueden cruzarse fila a fila (aquí, la 2da y 4ta)."""
+    lower = np.array([0.0, 5.0, -1.0, 0.17])
+    upper = np.array([2.0, 1.0, 3.0, 0.03])
+
+    fixed_lower, fixed_upper = rectify_crossing(lower, upper)
+
+    assert list(fixed_lower) == [0.0, 1.0, -1.0, 0.03]
+    assert list(fixed_upper) == [2.0, 5.0, 3.0, 0.17]
+    assert (fixed_lower <= fixed_upper).all()
+
+
+def test_evaluate_coverage_rectifies_crossed_intervals_before_scoring():
+    y_true = np.array([1.5])
+    lower = np.array([2.0])  # cruzado: lower > upper
+    upper = np.array([1.0])
+
+    result = evaluate_coverage(y_true, lower, upper)
+
+    assert result["coverage"] == 1.0  # 1.5 cae dentro de [1.0, 2.0] una vez rectificado
+    assert result["mean_width"] == pytest.approx(1.0)
 
 
 def test_evaluate_coverage_counts_points_inside_the_interval():

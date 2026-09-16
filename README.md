@@ -10,7 +10,8 @@
 ![Optuna](https://img.shields.io/badge/Optuna-hyperparameter%20tuning-6A5ACD)
 ![Polars](https://img.shields.io/badge/Polars-feature%20engineering-CD792C)
 ![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
-![pytest](https://img.shields.io/badge/pytest-42%20passing-0A9EDC?logo=pytest&logoColor=white)
+![Conformal Prediction](https://img.shields.io/badge/Conformal%20Prediction-CQR%20intervals-4a3aa7)
+![pytest](https://img.shields.io/badge/pytest-53%20passing-0A9EDC?logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 Hourly multi-target forecasting of Chile's National Electric System (SEN) — solar generation, wind generation, demand, and marginal cost (spot price) — for 5 real 220kV nodes, with LightGBM models tuned via Optuna, validated walk-forward against naive/seasonal baselines, real weather-driven features (solar irradiance, wind speed, temperature) closing the causal gap between weather and renewable output, a Rolling-Origin CV stability comparison against XGBoost, a recursive multi-step-ahead forecasting engine, and a Streamlit monitoring dashboard.
@@ -23,9 +24,10 @@ Chile's SEN is dominated by renewables in its northern nodes (some of the highes
 
 | Metric | Result | What it means |
 |---|---|---|
-| Solar generation WAPE | **3.60%** (vs. 26.95% naive, 19.46% seasonal-naive) | Largest LightGBM edge -- strong deterministic diurnal structure persistence can't exploit |
-| Demand WAPE | **2.54%** (vs. 4.79% naive) | Nearly half the error of 1-hour persistence |
-| Marginal cost WAPE | **5.95%** (vs. 10.26% naive) | Cost-exposure forecasting a generator/large consumer can act on |
+| Solar generation WAPE | **3.64%** (vs. 26.95% naive, 19.46% seasonal-naive) | Largest LightGBM edge -- strong deterministic diurnal structure persistence can't exploit |
+| Demand WAPE | **2.55%** (vs. 4.79% naive) | Nearly half the error of 1-hour persistence |
+| Marginal cost WAPE | **5.87%** (vs. 10.26% naive) | Cost-exposure forecasting a generator/large consumer can act on |
+| Marginal cost, 90% prediction interval | **89.9% empirical coverage** (conformalized) vs. 83.9% from the raw LightGBM quantiles | The point WAPE above is a single number; this is the actual, measured risk band a generator/consumer would size exposure against |
 | Honest finding: wind | Naive (9.93%) narrowly beats LightGBM (10.31%) | Root-caused, not hidden -- wind generation here is close to a pure mean-reverting random walk, where persistence is close to information-theoretically optimal |
 | Cross-model stability (marginal cost) | LightGBM CV 0.051 vs. XGBoost CV 0.133 | ~2.6x more stable across rolling 14-day test folds -- a concrete reason to prefer LightGBM for this target, not just a general preference |
 
@@ -60,8 +62,11 @@ flowchart LR
     B --> H["torch_forecaster.py\nPyTorch MLP + Huber loss\nReLU/GELU/Swish"]
     C -->|"forecaster_&lt;target&gt;.joblib x4\nforecaster_metrics.json"| D["forecast.py\nrecursive multi-step CLI"]
     C --> E["dashboard.py\nStreamlit + Plotly"]
+    C -->|"tuned hyperparameters"| J["conformal.py\nCQR prediction intervals\nx4 targets"]
     H --> I["generate_torch_report.py\nplots + metrics.duckdb"]
     G --> I
+    J -->|"conformal_&lt;target&gt;_{lower,upper}.joblib\nconformal_metrics.json"| D
+    J --> E
     D --> E
 ```
 
@@ -92,12 +97,12 @@ Walk-forward validation, 5 folds each, 48 shared features (36 before this round 
 
 | Target | LightGBM WAPE | Naive WAPE | Seasonal WAPE | LightGBM MAE |
 |---|---|---|---|---|
-| Solar generation | **3.60%** | 26.95% | 19.46% | 1.21 MWh |
+| Solar generation | **3.64%** | 26.95% | 19.46% | 1.22 MWh |
 | Wind generation | 10.31% | **9.93%** | 44.89% | 2.13 MWh |
-| Demand | **2.54%** | 4.79% | 5.60% | 4.28 MWh |
-| Marginal cost | **5.95%** | 10.26% | 12.08% | $5.27/MWh |
+| Demand | **2.55%** | 4.79% | 5.60% | 4.30 MWh |
+| Marginal cost | **5.87%** | 10.26% | 12.08% | $5.20/MWh |
 
-All numbers come directly from running `python -m src.models.train_forecaster` end to end (seed 42, 87,720 rows over 5 nodes × 17,544 hours, 20 Optuna trials/target). LightGBM clearly beats both baselines on solar, demand, and price; solar's WAPE dropped from 4.57% to 3.60% relative to the pre-weather baseline, the single largest gain in this round of work.
+All numbers come directly from running `python -m src.models.train_forecaster` end to end (seed 42, 87,720 rows over 5 nodes × 17,544 hours, 20 Optuna trials/target). LightGBM clearly beats both baselines on solar, demand, and price; solar's WAPE dropped from 4.57% to roughly 3.6% relative to the pre-weather baseline, the single largest gain in that round of work. (These specific decimals will drift by a few hundredths of a point between runs — LightGBM's multi-threaded histogram building isn't bit-reproducible even with a fixed `random_state`, and that noise compounds through Optuna's adaptive search into which hyperparameters it settles on. It doesn't move any conclusion below.)
 
 **Honest finding, reported as-is rather than tuned away: on wind, naive 1-hour persistence (9.93% WAPE) now narrowly beats LightGBM (10.31%), even with real weather features and Optuna tuning.** This flips the previous README's own stated hypothesis — "a real next step would be adding weather-forecast features [to close wind's narrow LightGBM-vs-naive gap]" — and the controlled ablation in §5.2 shows *why* that hypothesis doesn't hold: `wind_generation_mwh` here is close to a pure mean-reverting random walk (very weak 2%/hour reversion, ~0.99 hour-to-hour autocorrelation in the underlying wind-speed process), a regime where 1-step persistence is close to the information-theoretically best point forecast regardless of what other features are available — a real, well-documented property of short-horizon wind forecasting, not a bug in this pipeline. Solar doesn't have this problem because it has strong deterministic structure (a diurnal/seasonal cycle) that persistence can't exploit but irradiance and calendar features can.
 
@@ -155,6 +160,29 @@ The GIF below replays the real per-epoch Huber loss for the Swish run (same `fin
 ![MLP PyTorch loss curve, animated](data/processed/torch_loss_curve_marginal_cost_usd_mwh_animated.gif)
 ![MLP PyTorch loss curve](data/processed/torch_loss_curve_marginal_cost_usd_mwh.png)
 
+### 5.5 Prediction intervals: Conformalized Quantile Regression (`src/models/conformal.py`)
+
+§5.1–§5.4 are all point forecasts — a single number, no sense of how wrong it could plausibly be. That's a real gap against §1's own framing ("anticipate cost exposure and price-spike risk"): a risk band is what you size exposure against, not a WAPE percentage. This adds one: a pair of LightGBM quantile regressors (5th/95th percentile, targeting a 90% nominal interval) per target, conformalized with Conformalized Quantile Regression (Romano, Patterson & Candès, 2019) — a calibration split carved from the most recent 15% of each walk-forward fold's training set (`_split_train_calibration`), reflecting how miscalibrated the model is *now*, not months ago. Hyperparameters are the ones Optuna already tuned for the point model (`forecaster_metrics.json`), held fixed — the only thing that changes is the loss function, the same single-variable-at-a-time principle §5.2's ablation uses.
+
+Every fold reports coverage **both before and after** the conformal correction — the controlled comparison that shows conformalizing is doing real work, not just assumed to from the theory:
+
+| Target | Raw quantile coverage | Conformal coverage | Nominal | Raw width | Conformal width |
+|---|---|---|---|---|---|
+| Solar generation | 80.8% | 88.1% | 90% | 6.33 MWh | 6.70 MWh |
+| Wind generation | 90.5% | 91.1% | 90% | 10.17 MWh | 10.25 MWh |
+| Demand | 84.5% | 89.4% | 90% | 16.50 MWh | 18.42 MWh |
+| Marginal cost | 83.9% | **89.9%** | 90% | 17.72 $/MWh | 20.53 $/MWh |
+
+**The raw quantile regressors undercover by 6–10 points on three of the four targets, and conformalizing closes nearly all of that gap.** On marginal cost — the target that actually motivates this feature — coverage goes from 83.9% to 89.9%, within a point of nominal. Wind is the one target where conformalizing barely moves anything (90.5% → 91.1%), because its raw quantiles were already close to nominal — consistent with §5.1's own finding that wind behaves close to a pure random walk: a distribution without the strong deterministic structure the other three targets have for a fixed-quantile model to get wrong in the first place.
+
+**Solar's conformal coverage (88.1%) is the one that falls short of the 90% nominal, and not uniformly.** Splitting the deployed model's test set by day vs. night (`solar_generation_mwh == 0` is 40.1% of the rows) shows the actual mechanism, not a guess: night coverage is 98.2% at a mean interval width of 0.14 MWh (correctly near-degenerate, since solar really is exactly zero every night), while day coverage is only 83.8% at a mean width of 9.61 MWh. A single scalar margin, calibrated over both regimes combined, ends up too wide for the regime with almost no real variance and too narrow for the one that has it — a genuine limitation of this exact (global-margin) CQR formulation on a zero-inflated, heteroscedastic target, left as a real gap rather than smoothed over in the aggregate number. A day/night-grouped or locally-weighted conformal calibration would be the natural fix; not implemented here.
+
+**A second real defect surfaced by actually running `forecast.py` end to end, not by unit tests alone**: the two quantile regressors are trained independently, so nothing stops them from *crossing* (`lower > upper`) on an individual row. It happened on 0.46% of the deployed solar model's test rows — all clustered at dawn/dusk, where both quantiles predict values within a fraction of an MWh of each other near the 0 MWh physical floor and their relative order becomes estimation noise rather than signal. `rectify_crossing` (`src/models/conformal.py`) enforces the standard fix — element-wise min/max, per Chernozhukov, Fernández-Val & Galichon (2010) — applied everywhere an interval is built or scored; `tests/test_forecast.py::test_forecast_intervals_are_never_crossed` pins the regression directly against `forecast_node`'s real recursive output, not just the rectification function in isolation.
+
+`forecast.py`'s recursive forecaster and the dashboard's future-forecast panel both pick up these intervals automatically when `conformal.py` has been run (`load_interval_models`); if it hasn't, both degrade to point-only output instead of failing. The interval at each recursive step is computed fresh from that step's feature vector but never fed back into the history buffer — only the point prediction advances the recursion, same as before this feature existed — so the interval doesn't itself compound growing uncertainty across the horizon. A properly horizon-aware interval is a known simplification left for future work, not hidden.
+
+Run `python -m src.models.conformal` after `train_forecaster.py` (it reuses the tuned hyperparameters from `forecaster_metrics.json`).
+
 ## 6. Multi-step forecasting example
 
 ```bash
@@ -165,9 +193,11 @@ Real output (mining-profile node, forecast starting at local midnight): solar ou
 
 **A real limitation the recursive forecaster's own output exposes**: wind generation stays essentially flat (~6.9 MWh) across the whole 12-hour horizon above. That's not a model failure — it's `forecast.py` persisting the last *known* weather values forward into future hours (see `forecast_node`, `last_known_weather`), because this project simulates historical weather observations, not an NWP forecast for future hours. Solar still evolves correctly because its dominant driver (the cyclical hour-of-day/month encoding) is recomputed exactly for each future timestamp regardless of weather persistence, but wind — which depends almost entirely on the persisted weather value — visibly loses its own random-walk dynamics beyond the first step. Documented here rather than hidden: a production deployment would need real NWP wind forecasts for the recursive horizon, not persistence.
 
+When `conformal.py` (§5.5) has been run, the same CLI adds `<target>_lower`/`<target>_upper` columns, computed at every recursive step, no extra flag needed. Real output for `marginal_cost_usd_mwh` over the same run: [$79.98, $100.21] at midnight (point $92.69), and [$0.00, $22.98] by 10:00 as solar ramps up and the point forecast falls to $6.33 — the lower bound hits the $0 physical floor (clipped, same `TARGET_CLIP_RANGES` the point forecast already respects) while the raw interval width stays roughly the conformal margin's size either way, since §5.5's correction is one fixed additive margin per target, not one that adapts to how volatile a given hour looks.
+
 ## 7. Tech stack
 
-Python · Polars · pandas · NumPy · LightGBM · XGBoost · **PyTorch** (MLP, custom Huber loss, ReLU/GELU/Swish) · **DuckDB** (comparative metrics store) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (notebook) · pytest (42 tests: feature-leakage checks, weather-lag correctness, fold-splitting invariants for both walk-forward and Rolling-Origin CV, baseline correctness, end-to-end recursive-forecast validation, dashboard smoke test via `streamlit.testing.v1.AppTest`, PyTorch MLP/Huber-loss/activation-comparison tests, DuckDB metrics-store round-trip)
+Python · Polars · pandas · NumPy · LightGBM (point + quantile regression) · XGBoost · **PyTorch** (MLP, custom Huber loss, ReLU/GELU/Swish) · **Conformalized Quantile Regression** (prediction intervals) · **DuckDB** (comparative metrics store) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (2 notebooks) · pytest (53 tests: feature-leakage checks, weather-lag correctness, fold-splitting invariants for both walk-forward and Rolling-Origin CV, baseline correctness, end-to-end recursive-forecast validation, conformal coverage/crossing/calibration-split invariants, dashboard smoke test via `streamlit.testing.v1.AppTest`, PyTorch MLP/Huber-loss/activation-comparison tests, DuckDB metrics-store round-trip)
 
 ## 8. Getting started
 
@@ -186,7 +216,11 @@ python -m src.models.rolling_stability     # Rolling-Origin CV, LightGBM vs XGBo
 python -m src.models.generate_torch_report  # PyTorch MLP (Huber loss, ReLU/GELU/Swish) vs LightGBM/XGBoost
                                              # -> plots + data/processed/metrics.duckdb
 
+python -m src.models.conformal              # CQR prediction intervals, all 4 targets (needs train_forecaster first)
+# optional: --splits N (default 5)
+
 python -m src.models.forecast --horizon 24 --nodes all   # recursive N-hour-ahead forecast (CLI)
+                                                           # adds <target>_lower/_upper columns if conformal.py ran
 streamlit run src/app/dashboard.py                        # launch the monitoring dashboard
 
 python -m pytest tests/ -v                                 # run the test suite
@@ -209,15 +243,17 @@ src/
               torch_plots.py          predicted-vs-actual / residuals / loss-curve / activation plots
               metrics_db.py           DuckDB comparative metrics store (model_comparison table)
               generate_torch_report.py  orchestrates MLP training + plots + DuckDB persistence
-              forecast.py             recursive multi-step-ahead CLI
-  app/        dashboard.py            Streamlit monitoring + live-forecast dashboard
+              conformal.py            CQR prediction intervals (quantile regressors + calibration), 4 targets
+              forecast.py             recursive multi-step-ahead CLI, with optional prediction intervals
+  app/        dashboard.py            Streamlit monitoring + live-forecast dashboard, with interval band
 notebooks/    01_eda_seasonality_analysis.ipynb       EDA: diurnal/monthly seasonality, per-node demand
                                                        profiles, duck curve, weather-target correlations,
                                                        autocorrelation at the lags build_features.py uses
               02_Weather_Augmented_Rolling_CV.ipynb   weather-feature ablation + stability analysis
 tests/                                pytest: features, validation, baselines, forecast, dashboard,
-                                       rolling stability, feature-column exclusion, PyTorch MLP/loss/
-                                       activations, DuckDB metrics store
+                                       rolling stability, feature-column exclusion, conformal coverage/
+                                       crossing/calibration-split, PyTorch MLP/loss/activations,
+                                       DuckDB metrics store
 ```
 
 ## 10. Author

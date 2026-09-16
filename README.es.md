@@ -10,7 +10,8 @@
 ![Optuna](https://img.shields.io/badge/Optuna-tuning%20de%20hiperpar%C3%A1metros-6A5ACD)
 ![Polars](https://img.shields.io/badge/Polars-feature%20engineering-CD792C)
 ![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
-![pytest](https://img.shields.io/badge/pytest-42%20passing-0A9EDC?logo=pytest&logoColor=white)
+![Conformal Prediction](https://img.shields.io/badge/Predicci%C3%B3n%20Conformal-intervalos%20CQR-4a3aa7)
+![pytest](https://img.shields.io/badge/pytest-53%20passing-0A9EDC?logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 Pronóstico horario multi-target del Sistema Eléctrico Nacional (SEN) de Chile — generación solar, generación eólica, demanda y costo marginal (precio spot) — para 5 nodos reales de 220kV, con modelos LightGBM ajustados vía Optuna, validados walk-forward contra baselines naive/estacional, features meteorológicas reales (radiación solar, viento, temperatura) que cierran la brecha causal entre el clima y la generación renovable, una comparación de estabilidad vía Rolling-Origin CV contra XGBoost, un motor de pronóstico recursivo multi-step, y un dashboard de monitoreo en Streamlit.
@@ -23,9 +24,10 @@ El SEN chileno está dominado por energías renovables en sus nodos del norte (u
 
 | Métrica | Resultado | Qué significa |
 |---|---|---|
-| WAPE de generación solar | **3,60%** (vs. 26,95% naive, 19,46% seasonal-naive) | La mayor ventaja de LightGBM -- estructura diurna determinística fuerte que la persistencia no puede explotar |
-| WAPE de demanda | **2,54%** (vs. 4,79% naive) | Casi la mitad del error de la persistencia de 1 hora |
-| WAPE de costo marginal | **5,95%** (vs. 10,26% naive) | Pronóstico de exposición a costos accionable para un generador/gran consumidor |
+| WAPE de generación solar | **3,64%** (vs. 26,95% naive, 19,46% seasonal-naive) | La mayor ventaja de LightGBM -- estructura diurna determinística fuerte que la persistencia no puede explotar |
+| WAPE de demanda | **2,55%** (vs. 4,79% naive) | Casi la mitad del error de la persistencia de 1 hora |
+| WAPE de costo marginal | **5,87%** (vs. 10,26% naive) | Pronóstico de exposición a costos accionable para un generador/gran consumidor |
+| Intervalo de predicción 90% del costo marginal | **89,9% de cobertura empírica** (conformalizado) vs. 83,9% con los cuantiles crudos de LightGBM | El WAPE puntual de arriba es un solo número; esto es la banda de riesgo real y medida contra la que un generador/consumidor dimensionaría su exposición |
 | Hallazgo honesto: eólica | Naive (9,93%) le gana por poco a LightGBM (10,31%) | Investigado hasta la causa raíz, no escondido -- la generación eólica aquí es cercana a un random walk mean-reverting puro, donde la persistencia es cercana al óptimo teórico de información |
 | Estabilidad entre modelos (costo marginal) | LightGBM CV 0,051 vs. XGBoost CV 0,133 | ~2,6x más estable a través de folds rodantes de 14 días -- una razón concreta para preferir LightGBM en este target, no solo una preferencia general |
 
@@ -60,8 +62,11 @@ flowchart LR
     B --> H["torch_forecaster.py\nMLP PyTorch + loss Huber\nReLU/GELU/Swish"]
     C -->|"forecaster_&lt;target&gt;.joblib x4\nforecaster_metrics.json"| D["forecast.py\nCLI de pronóstico recursivo"]
     C --> E["dashboard.py\nStreamlit + Plotly"]
+    C -->|"hiperparámetros ajustados"| J["conformal.py\nintervalos CQR\nx4 targets"]
     H --> I["generate_torch_report.py\ngráficos + metrics.duckdb"]
     G --> I
+    J -->|"conformal_&lt;target&gt;_{lower,upper}.joblib\nconformal_metrics.json"| D
+    J --> E
     D --> E
 ```
 
@@ -92,12 +97,12 @@ Validación walk-forward, 5 folds cada uno, 48 features compartidas (36 previas 
 
 | Target | WAPE LightGBM | WAPE naive | WAPE estacional | MAE LightGBM |
 |---|---|---|---|---|
-| Generación solar | **3,60%** | 26,95% | 19,46% | 1,21 MWh |
+| Generación solar | **3,64%** | 26,95% | 19,46% | 1,22 MWh |
 | Generación eólica | 10,31% | **9,93%** | 44,89% | 2,13 MWh |
-| Demanda | **2,54%** | 4,79% | 5,60% | 4,28 MWh |
-| Costo marginal | **5,95%** | 10,26% | 12,08% | $5,27/MWh |
+| Demanda | **2,55%** | 4,79% | 5,60% | 4,30 MWh |
+| Costo marginal | **5,87%** | 10,26% | 12,08% | $5,20/MWh |
 
-Todos los números provienen directamente de ejecutar `python -m src.models.train_forecaster` de punta a punta (semilla 42, 87.720 filas sobre 5 nodos × 17.544 horas, 20 trials de Optuna por target). LightGBM supera claramente a ambos baselines en solar, demanda y precio; el WAPE de solar bajó de 4,57% a 3,60% respecto de la línea base previa al clima, la ganancia más grande de esta ronda de trabajo.
+Todos los números provienen directamente de ejecutar `python -m src.models.train_forecaster` de punta a punta (semilla 42, 87.720 filas sobre 5 nodos × 17.544 horas, 20 trials de Optuna por target). LightGBM supera claramente a ambos baselines en solar, demanda y precio; el WAPE de solar bajó de 4,57% a aproximadamente 3,6% respecto de la línea base previa al clima, la ganancia más grande de esa ronda de trabajo. (Estos decimales específicos varían unas centésimas de punto entre corridas -- la construcción multi-hilo de histogramas de LightGBM no es reproducible bit a bit ni con `random_state` fijo, y ese ruido se propaga a través de la búsqueda adaptativa de Optuna hasta en qué hiperparámetros termina. No cambia ninguna conclusión de abajo.)
 
 **Hallazgo honesto, reportado tal cual en vez de ajustado hasta que se viera bien: en eólica, la persistencia naive de 1 hora (9,93% WAPE) ahora supera levemente a LightGBM (10,31%), incluso con features meteorológicas reales y tuning de Optuna.** Esto invierte la hipótesis que el propio README anterior planteaba -- "un paso siguiente real sería agregar features de pronóstico meteorológico [para cerrar la brecha estrecha de LightGBM vs. naive en eólica]" -- y la ablación controlada de §5.2 muestra *por qué* esa hipótesis no se sostiene: `wind_generation_mwh` acá es cercano a un camino aleatorio puro con reversión a la media (reversión muy débil, 2%/hora; autocorrelación hora a hora de ~0,99 en el proceso de velocidad de viento subyacente), un régimen donde la persistencia a 1 paso está cerca del mejor pronóstico puntual posible desde el punto de vista de la teoría de la información, sin importar qué otras features estén disponibles — una propiedad real y bien documentada del pronóstico eólico a horizontes cortos, no un bug de este pipeline. Solar no tiene este problema porque tiene una estructura determinística fuerte (un ciclo diurno/estacional) que la persistencia no puede explotar pero que la irradiancia y las features de calendario sí.
 
@@ -155,6 +160,29 @@ El GIF de abajo reproduce el loss Huber real por época de la corrida Swish (el 
 ![Curva de loss del MLP PyTorch, animada](data/processed/torch_loss_curve_marginal_cost_usd_mwh_animated.gif)
 ![Curva de loss del MLP PyTorch](data/processed/torch_loss_curve_marginal_cost_usd_mwh.png)
 
+### 5.5 Intervalos de predicción: Conformalized Quantile Regression (`src/models/conformal.py`)
+
+§5.1–§5.4 son todos pronósticos puntuales -- un solo número, sin ninguna noción de cuán equivocado podría estar. Eso es una brecha real contra el propio marco de §1 ("anticipar exposición a costos y riesgo de precios pico"): una banda de riesgo es lo que se usa para dimensionar exposición, no un porcentaje de WAPE. Esto agrega una: un par de regresores de cuantiles LightGBM (percentil 5/95, apuntando a un intervalo nominal del 90%) por target, conformalizados con Conformalized Quantile Regression (Romano, Patterson & Candès, 2019) -- un tramo de calibración tomado del último 15% del train de cada fold walk-forward (`_split_train_calibration`), que refleja cuán mal calibrado está el modelo *ahora*, no hace meses. Los hiperparámetros son los que Optuna ya ajustó para el modelo puntual (`forecaster_metrics.json`), mantenidos fijos -- lo único que cambia es la función de pérdida, el mismo principio de una sola variable a la vez que usa la ablación de §5.2.
+
+Cada fold reporta la cobertura **antes y después** de la corrección conformal -- la comparación controlada que muestra que conformalizar hace un trabajo real, no que simplemente se asume que funciona por la teoría:
+
+| Target | Cobertura cruda | Cobertura conforme | Nominal | Ancho crudo | Ancho conforme |
+|---|---|---|---|---|---|
+| Generación solar | 80,8% | 88,1% | 90% | 6,33 MWh | 6,70 MWh |
+| Generación eólica | 90,5% | 91,1% | 90% | 10,17 MWh | 10,25 MWh |
+| Demanda | 84,5% | 89,4% | 90% | 16,50 MWh | 18,42 MWh |
+| Costo marginal | 83,9% | **89,9%** | 90% | 17,72 $/MWh | 20,53 $/MWh |
+
+**Los regresores de cuantiles crudos subcubren entre 6 y 10 puntos en tres de los cuatro targets, y conformalizar cierra casi toda esa brecha.** En el costo marginal -- el target que en realidad motiva esta feature -- la cobertura pasa de 83,9% a 89,9%, a menos de un punto del nominal. Eólica es el único target donde conformalizar casi no cambia nada (90,5% → 91,1%), porque sus cuantiles crudos ya estaban cerca del nominal -- consistente con el propio hallazgo de §5.1 de que la eólica se comporta casi como un camino aleatorio puro: una distribución sin la estructura determinística fuerte que los otros tres targets sí tienen para que un modelo de cuantiles fijo se equivoque en primer lugar.
+
+**La cobertura conforme de solar (88,1%) es la que queda por debajo del 90% nominal, y no de forma uniforme.** Separar el set de test del modelo desplegado entre día y noche (`solar_generation_mwh == 0` es 40,1% de las filas) muestra el mecanismo real, no una suposición: la cobertura de noche es 98,2% con un ancho medio de intervalo de 0,14 MWh (correctamente casi degenerado, porque solar realmente es exactamente cero todas las noches), mientras que la cobertura de día es solo 83,8% con un ancho medio de 9,61 MWh. Un único margen escalar, calibrado sobre ambos regímenes combinados, termina siendo demasiado ancho para el régimen sin varianza real y demasiado angosto para el que sí la tiene -- una limitación genuina de esta formulación exacta de CQR (margen global) sobre un target heterocedástico con inflación de ceros, dejada como una brecha real en vez de disimulada en el número agregado. Una calibración conformal agrupada por día/noche o localmente ponderada sería la corrección natural; no implementada acá.
+
+**Un segundo defecto real que apareció al correr `forecast.py` de punta a punta, no solo con tests unitarios**: los dos regresores de cuantiles se entrenan por separado, así que nada les impide *cruzarse* (`lower > upper`) en una fila puntual. Pasó en 0,46% de las filas de test del modelo de solar desplegado -- todas concentradas en el amanecer/atardecer, donde ambos cuantiles predicen valores a una fracción de MWh de distancia entre sí, cerca del piso físico de 0 MWh, y su orden relativo se vuelve ruido de estimación en vez de señal. `rectify_crossing` (`src/models/conformal.py`) aplica la corrección estándar -- mínimo/máximo elemento a elemento, según Chernozhukov, Fernández-Val & Galichon (2010) -- aplicada en todo lugar donde se construye o evalúa un intervalo; `tests/test_forecast.py::test_forecast_intervals_are_never_crossed` fija esta regresión directamente contra la salida recursiva real de `forecast_node`, no solo contra la función de rectificación aislada.
+
+El pronosticador recursivo de `forecast.py` y el panel de pronóstico a futuro del dashboard adoptan estos intervalos automáticamente cuando `conformal.py` ya corrió (`load_interval_models`); si no, ambos degradan a salida solo-puntual en vez de fallar. El intervalo en cada paso recursivo se calcula de nuevo desde el vector de features de ese paso, pero nunca se retroalimenta al buffer de historia -- solo la predicción puntual avanza la recursión, igual que antes de que existiera esta feature -- así que el intervalo en sí no acumula incertidumbre creciente a través del horizonte. Un intervalo propiamente consciente del horizonte es una simplificación conocida, dejada para trabajo futuro, no ocultada.
+
+Correr `python -m src.models.conformal` después de `train_forecaster.py` (reutiliza los hiperparámetros ajustados de `forecaster_metrics.json`).
+
 ## 6. Ejemplo de pronóstico multi-step
 
 ```bash
@@ -165,9 +193,11 @@ Salida real (nodo de perfil minero, pronóstico desde medianoche local): la gene
 
 **Una limitación real que la propia salida del pronosticador recursivo expone**: la generación eólica se mantiene prácticamente plana (~6,9 MWh) durante las 12 horas del ejemplo de arriba. No es una falla del modelo -- es `forecast.py` persistiendo hacia adelante el último valor *conocido* de clima (ver `forecast_node`, `last_known_weather`), porque este proyecto simula observaciones históricas de clima, no un pronóstico NWP para horas futuras. La generación solar sigue evolucionando correctamente porque su driver dominante (la codificación cíclica de hora del día/mes) se recalcula exactamente para cada timestamp futuro sin importar la persistencia del clima, pero la eólica -- que depende casi por completo del valor de clima persistido -- visiblemente pierde su propia dinámica de camino aleatorio más allá del primer paso. Documentado acá en vez de ocultarlo: un despliegue en producción necesitaría pronósticos NWP reales de viento para el horizonte recursivo, no persistencia.
 
+Cuando `conformal.py` (§5.5) ya corrió, el mismo CLI agrega columnas `<target>_lower`/`<target>_upper`, calculadas en cada paso recursivo, sin ningún flag extra. Salida real para `marginal_cost_usd_mwh` sobre la misma corrida: [$79,98, $100,21] a medianoche (puntual $92,69), y [$0,00, $22,98] a las 10:00 a medida que sube la solar y el pronóstico puntual cae a $6,33 -- el límite inferior toca el piso físico de $0 (recortado, el mismo `TARGET_CLIP_RANGES` que ya respeta el pronóstico puntual) mientras que el ancho crudo del intervalo se mantiene más o menos del tamaño del margen conformal en ambos casos, porque la corrección de §5.5 es un margen aditivo fijo por target, no uno que se adapte a cuán volátil se ve una hora en particular.
+
 ## 7. Stack tecnológico
 
-Python · Polars · pandas · NumPy · LightGBM · XGBoost · **PyTorch** (MLP, loss Huber custom, ReLU/GELU/Swish) · **DuckDB** (almacén comparativo de métricas) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (notebook) · pytest (42 tests: chequeos de fuga de features, correctitud de lags meteorológicos, invariantes de partición de folds tanto para walk-forward como Rolling-Origin CV, corrección de baselines, validación end-to-end del pronóstico recursivo, smoke test del dashboard vía `streamlit.testing.v1.AppTest`, tests del MLP PyTorch/loss Huber/comparación de activaciones, round-trip del almacén de métricas DuckDB)
+Python · Polars · pandas · NumPy · LightGBM (regresión puntual + de cuantiles) · XGBoost · **PyTorch** (MLP, loss Huber custom, ReLU/GELU/Swish) · **Conformalized Quantile Regression** (intervalos de predicción) · **DuckDB** (almacén comparativo de métricas) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (2 notebooks) · pytest (53 tests: chequeos de fuga de features, correctitud de lags meteorológicos, invariantes de partición de folds tanto para walk-forward como Rolling-Origin CV, corrección de baselines, validación end-to-end del pronóstico recursivo, invariantes de cobertura/cruce/split de calibración conformal, smoke test del dashboard vía `streamlit.testing.v1.AppTest`, tests del MLP PyTorch/loss Huber/comparación de activaciones, round-trip del almacén de métricas DuckDB)
 
 ## 8. Cómo ejecutar
 
@@ -186,7 +216,11 @@ python -m src.models.rolling_stability     # Rolling-Origin CV, LightGBM vs XGBo
 python -m src.models.generate_torch_report  # MLP PyTorch (loss Huber, ReLU/GELU/Swish) vs LightGBM/XGBoost
                                              # -> gráficos + data/processed/metrics.duckdb
 
+python -m src.models.conformal              # intervalos de predicción CQR, los 4 targets (necesita train_forecaster antes)
+# opcional: --splits N (default 5)
+
 python -m src.models.forecast --horizon 24 --nodes all   # pronóstico recursivo a N horas (CLI)
+                                                           # agrega columnas <target>_lower/_upper si conformal.py ya corrió
 streamlit run src/app/dashboard.py                        # levantar el dashboard de monitoreo
 
 python -m pytest tests/ -v                                 # correr la suite de tests
@@ -209,15 +243,17 @@ src/
               torch_plots.py          gráficos de predicho-vs-real / residuos / loss-por-época / activaciones
               metrics_db.py           almacén comparativo de métricas en DuckDB (tabla model_comparison)
               generate_torch_report.py  orquesta entrenamiento MLP + gráficos + persistencia DuckDB
-              forecast.py             CLI de pronóstico recursivo multi-step
-  app/        dashboard.py            dashboard de monitoreo + pronóstico en vivo, en Streamlit
+              conformal.py            intervalos de predicción CQR (regresores de cuantiles + calibración), 4 targets
+              forecast.py             CLI de pronóstico recursivo multi-step, con intervalos de predicción opcionales
+  app/        dashboard.py            dashboard de monitoreo + pronóstico en vivo, en Streamlit, con banda de intervalo
 notebooks/    01_eda_seasonality_analysis.ipynb       EDA: estacionalidad diurna/mensual, perfiles de demanda
                                                        por nodo, curva de pato, correlaciones clima-target,
                                                        autocorrelación en los lags que usa build_features.py
               02_Weather_Augmented_Rolling_CV.ipynb   ablación de features de clima + análisis de estabilidad
 tests/                                pytest: features, validación, baselines, forecast, dashboard,
-                                       estabilidad rolling, exclusión de columnas de features, MLP PyTorch/
-                                       loss/activaciones, almacén de métricas DuckDB
+                                       estabilidad rolling, exclusión de columnas de features, cobertura/cruce/
+                                       split de calibración conformal, MLP PyTorch/loss/activaciones,
+                                       almacén de métricas DuckDB
 ```
 
 ## 10. Autor

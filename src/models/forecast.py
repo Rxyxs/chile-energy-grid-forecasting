@@ -141,6 +141,10 @@ def forecast_node(
         for target, artifacts in (interval_models or {}).items():
             lower = float(artifacts["lower_model"].predict(X)[0]) - artifacts["margin"]
             upper = float(artifacts["upper_model"].predict(X)[0]) + artifacts["margin"]
+            # Los dos cuantiles se entrenan por separado y pueden "cruzarse"
+            # en una fila puntual (raro, pero ocurre en ~0.5% de las horas de
+            # solar cerca de 0 MWh -- ver conformal.rectify_crossing).
+            lower, upper = min(lower, upper), max(lower, upper)
             low, high = TARGET_CLIP_RANGES[target]
             lower = max(lower, low) if low is not None else lower
             upper = min(upper, high) if high is not None else upper

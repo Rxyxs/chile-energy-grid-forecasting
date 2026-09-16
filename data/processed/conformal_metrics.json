@@ -1,0 +1,274 @@
+{
+  "solar_generation_mwh": {
+    "target_column": "solar_generation_mwh",
+    "alpha": 0.1,
+    "nominal_coverage": 0.9,
+    "n_splits": 5,
+    "fold_metrics": [
+      {
+        "fold": 0,
+        "fit_rows": 12310,
+        "calib_rows": 2170,
+        "test_rows": 14480,
+        "margin": 0.5518905760682031,
+        "naive_coverage": 0.6529696132596685,
+        "naive_mean_width": 8.575832071918722,
+        "conformal_coverage": 0.8255524861878453,
+        "conformal_mean_width": 9.650226103621153
+      },
+      {
+        "fold": 1,
+        "fit_rows": 24620,
+        "calib_rows": 4340,
+        "test_rows": 14480,
+        "margin": 0.0495806810928009,
+        "naive_coverage": 0.8043508287292818,
+        "naive_mean_width": 6.689880014051664,
+        "conformal_coverage": 0.863950276243094,
+        "conformal_mean_width": 6.787380204414835
+      },
+      {
+        "fold": 2,
+        "fit_rows": 36925,
+        "calib_rows": 6515,
+        "test_rows": 14480,
+        "margin": 0.3279957637211801,
+        "naive_coverage": 0.8652624309392265,
+        "naive_mean_width": 6.118383680172496,
+        "conformal_coverage": 0.9325276243093923,
+        "conformal_mean_width": 6.773553977270548
+      },
+      {
+        "fold": 3,
+        "fit_rows": 49235,
+        "calib_rows": 8685,
+        "test_rows": 14480,
+        "margin": 0.007136327979999843,
+        "naive_coverage": 0.843646408839779,
+        "naive_mean_width": 4.487920032541351,
+        "conformal_coverage": 0.8875,
+        "conformal_mean_width": 4.501918871392927
+      },
+      {
+        "fold": 4,
+        "fit_rows": 61540,
+        "calib_rows": 10860,
+        "test_rows": 14480,
+        "margin": 0.004917540433110889,
+        "naive_coverage": 0.8753453038674033,
+        "naive_mean_width": 5.800049806475345,
+        "conformal_coverage": 0.8957872928176795,
+        "conformal_mean_width": 5.809761905060301
+      }
+    ],
+    "mean_naive_coverage": 0.8083149171270717,
+    "mean_conformal_coverage": 0.8810635359116024,
+    "mean_naive_width": 6.334413121031915,
+    "mean_conformal_width": 6.704568212351953,
+    "margin": 0.004917540433110889
+  },
+  "wind_generation_mwh": {
+    "target_column": "wind_generation_mwh",
+    "alpha": 0.1,
+    "nominal_coverage": 0.9,
+    "n_splits": 5,
+    "fold_metrics": [
+      {
+        "fold": 0,
+        "fit_rows": 12310,
+        "calib_rows": 2170,
+        "test_rows": 14480,
+        "margin": 0.21343642084392656,
+        "naive_coverage": 0.8810773480662983,
+        "naive_mean_width": 10.932626544643758,
+        "conformal_coverage": 0.9066988950276244,
+        "conformal_mean_width": 11.359499386331612
+      },
+      {
+        "fold": 1,
+        "fit_rows": 24620,
+        "calib_rows": 4340,
+        "test_rows": 14480,
+        "margin": 0.00010629334744626256,
+        "naive_coverage": 0.9080110497237569,
+        "naive_mean_width": 9.326292235675623,
+        "conformal_coverage": 0.9135359116022099,
+        "conformal_mean_width": 9.326504822370516
+      },
+      {
+        "fold": 2,
+        "fit_rows": 36925,
+        "calib_rows": 6515,
+        "test_rows": 14480,
+        "margin": 0.0,
+        "naive_coverage": 0.9130524861878453,
+        "naive_mean_width": 9.918232124223053,
+        "conformal_coverage": 0.9130524861878453,
+        "conformal_mean_width": 9.918232124223053
+      },
+      {
+        "fold": 3,
+        "fit_rows": 49235,
+        "calib_rows": 8685,
+        "test_rows": 14480,
+        "margin": 0.0,
+        "naive_coverage": 0.9017955801104972,
+        "naive_mean_width": 10.924877586873256,
+        "conformal_coverage": 0.9017955801104972,
+        "conformal_mean_width": 10.924877586873256
+      },
+      {
+        "fold": 4,
+        "fit_rows": 61540,
+        "calib_rows": 10860,
+        "test_rows": 14480,
+        "margin": 0.0,
+        "naive_coverage": 0.9222375690607735,
+        "naive_mean_width": 9.740199102549669,
+        "conformal_coverage": 0.9222375690607735,
+        "conformal_mean_width": 9.740199102549669
+      }
+    ],
+    "mean_naive_coverage": 0.9052348066298344,
+    "mean_conformal_coverage": 0.91146408839779,
+    "mean_naive_width": 10.168445518793073,
+    "mean_conformal_width": 10.25386260446962,
+    "margin": 0.0
+  },
+  "demand_mwh": {
+    "target_column": "demand_mwh",
+    "alpha": 0.1,
+    "nominal_coverage": 0.9,
+    "n_splits": 5,
+    "fold_metrics": [
+      {
+        "fold": 0,
+        "fit_rows": 12310,
+        "calib_rows": 2170,
+        "test_rows": 14480,
+        "margin": 1.6710779339022395,
+        "naive_coverage": 0.7879143646408839,
+        "naive_mean_width": 17.16941892520326,
+        "conformal_coverage": 0.8736878453038674,
+        "conformal_mean_width": 20.51157479300774
+      },
+      {
+        "fold": 1,
+        "fit_rows": 24620,
+        "calib_rows": 4340,
+        "test_rows": 14480,
+        "margin": 1.1074323425421682,
+        "naive_coverage": 0.8464088397790055,
+        "naive_mean_width": 16.097759211293948,
+        "conformal_coverage": 0.9046270718232045,
+        "conformal_mean_width": 18.312623896378284
+      },
+      {
+        "fold": 2,
+        "fit_rows": 36925,
+        "calib_rows": 6515,
+        "test_rows": 14480,
+        "margin": 0.5092924003170793,
+        "naive_coverage": 0.8531767955801105,
+        "naive_mean_width": 15.356560466606046,
+        "conformal_coverage": 0.8806629834254144,
+        "conformal_mean_width": 16.3751452672402
+      },
+      {
+        "fold": 3,
+        "fit_rows": 49235,
+        "calib_rows": 8685,
+        "test_rows": 14480,
+        "margin": 0.6832218710401321,
+        "naive_coverage": 0.8558701657458564,
+        "naive_mean_width": 17.344377194651848,
+        "conformal_coverage": 0.8912983425414365,
+        "conformal_mean_width": 18.710820936732112
+      },
+      {
+        "fold": 4,
+        "fit_rows": 61540,
+        "calib_rows": 10860,
+        "test_rows": 14480,
+        "margin": 0.8355090387473183,
+        "naive_coverage": 0.881767955801105,
+        "naive_mean_width": 16.533177105175273,
+        "conformal_coverage": 0.9185773480662983,
+        "conformal_mean_width": 18.20419518266991
+      }
+    ],
+    "mean_naive_coverage": 0.8450276243093923,
+    "mean_conformal_coverage": 0.8937707182320442,
+    "mean_naive_width": 16.500258580586074,
+    "mean_conformal_width": 18.422872015205648,
+    "margin": 0.8355090387473183
+  },
+  "marginal_cost_usd_mwh": {
+    "target_column": "marginal_cost_usd_mwh",
+    "alpha": 0.1,
+    "nominal_coverage": 0.9,
+    "n_splits": 5,
+    "fold_metrics": [
+      {
+        "fold": 0,
+        "fit_rows": 12310,
+        "calib_rows": 2170,
+        "test_rows": 14480,
+        "margin": 2.3800816292128815,
+        "naive_coverage": 0.7957872928176796,
+        "naive_mean_width": 19.30343370758621,
+        "conformal_coverage": 0.8914364640883978,
+        "conformal_mean_width": 24.062972775413833
+      },
+      {
+        "fold": 1,
+        "fit_rows": 24620,
+        "calib_rows": 4340,
+        "test_rows": 14480,
+        "margin": 1.1750414464035117,
+        "naive_coverage": 0.8475138121546961,
+        "naive_mean_width": 17.456416260624763,
+        "conformal_coverage": 0.8989640883977901,
+        "conformal_mean_width": 19.80351398427635
+      },
+      {
+        "fold": 2,
+        "fit_rows": 36925,
+        "calib_rows": 6515,
+        "test_rows": 14480,
+        "margin": 1.17812826606216,
+        "naive_coverage": 0.8485497237569061,
+        "naive_mean_width": 17.252338300988967,
+        "conformal_coverage": 0.9037983425414364,
+        "conformal_mean_width": 19.608114399840765
+      },
+      {
+        "fold": 3,
+        "fit_rows": 49235,
+        "calib_rows": 8685,
+        "test_rows": 14480,
+        "margin": 1.0103227011436218,
+        "naive_coverage": 0.8389502762430939,
+        "naive_mean_width": 17.628235421644675,
+        "conformal_coverage": 0.8875690607734806,
+        "conformal_mean_width": 19.64888082393192
+      },
+      {
+        "fold": 4,
+        "fit_rows": 61540,
+        "calib_rows": 10860,
+        "test_rows": 14480,
+        "margin": 1.2801087430897695,
+        "naive_coverage": 0.8630524861878454,
+        "naive_mean_width": 16.967123513714323,
+        "conformal_coverage": 0.9141574585635359,
+        "conformal_mean_width": 19.52725043477078
+      }
+    ],
+    "mean_naive_coverage": 0.8387707182320442,
+    "mean_conformal_coverage": 0.8991850828729282,
+    "mean_naive_width": 17.721509440911788,
+    "mean_conformal_width": 20.53014648364673,
+    "margin": 1.2801087430897695
+  }
+}
