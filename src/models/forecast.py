@@ -66,6 +66,15 @@ def load_models() -> dict[str, object]:
     return models
 
 
+def load_interval_models() -> dict[str, dict]:
+    """Modelos de intervalo (cuantiles conformalizados, `src/models/conformal.py`)
+    -- opcionales: si no se entrenaron todavía, `forecast_node` simplemente no
+    agrega columnas de intervalo, en vez de fallar."""
+    from src.models.conformal import load_conformal_artifacts
+
+    return load_conformal_artifacts()
+
+
 def _build_features_for_buffer(buffer: pl.DataFrame) -> pl.DataFrame:
     df = add_lag_features(buffer)
     df = add_weather_lag_features(df)
@@ -76,8 +85,20 @@ def _build_features_for_buffer(buffer: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
-def forecast_node(node_history: pd.DataFrame, node: str, horizon: int, models: dict[str, object]) -> pd.DataFrame:
-    """Pronostica `horizon` horas hacia adelante para un solo nodo, de forma recursiva."""
+def forecast_node(
+    node_history: pd.DataFrame,
+    node: str,
+    horizon: int,
+    models: dict[str, object],
+    interval_models: dict[str, dict] | None = None,
+) -> pd.DataFrame:
+    """Pronostica `horizon` horas hacia adelante para un solo nodo, de forma
+    recursiva. Si se pasa `interval_models` (ver `load_interval_models`),
+    agrega columnas `<target>_lower`/`<target>_upper` por cada target que
+    tenga modelo de intervalo -- calculadas sobre el mismo vector de features
+    que el pronóstico puntual, en cada paso, pero sin retroalimentarse: lo
+    único que avanza el buffer histórico de un paso al siguiente es la
+    predicción puntual, igual que antes de agregar intervalos."""
     buffer = node_history.tail(HISTORY_BUFFER_HOURS).reset_index(drop=True)
     feature_columns = None
     forecast_rows = []
@@ -116,21 +137,38 @@ def forecast_node(node_history: pd.DataFrame, node: str, horizon: int, models: d
             pred = min(pred, high) if high is not None else pred
             predictions[target] = pred
 
+        intervals = {}
+        for target, artifacts in (interval_models or {}).items():
+            lower = float(artifacts["lower_model"].predict(X)[0]) - artifacts["margin"]
+            upper = float(artifacts["upper_model"].predict(X)[0]) + artifacts["margin"]
+            low, high = TARGET_CLIP_RANGES[target]
+            lower = max(lower, low) if low is not None else lower
+            upper = min(upper, high) if high is not None else upper
+            intervals[f"{target}_lower"] = lower
+            intervals[f"{target}_upper"] = upper
+
         new_row.loc[0, list(predictions.keys())] = list(predictions.values())
         buffer = pd.concat([buffer, new_row], ignore_index=True).tail(HISTORY_BUFFER_HOURS).reset_index(drop=True)
-        forecast_rows.append({"timestamp": next_timestamp, "node": node, **predictions})
+        forecast_rows.append({"timestamp": next_timestamp, "node": node, **predictions, **intervals})
 
     return pd.DataFrame(forecast_rows)
 
 
-def forecast(nodes: list[str], horizon: int) -> pd.DataFrame:
+def forecast(nodes: list[str], horizon: int, with_intervals: bool = True) -> pd.DataFrame:
     raw = pd.read_csv(RAW_PATH, parse_dates=["timestamp"])
     models = load_models()
+
+    interval_models = None
+    if with_intervals:
+        try:
+            interval_models = load_interval_models()
+        except FileNotFoundError:
+            interval_models = None  # opcional: corre `python -m src.models.conformal` para habilitarlos
 
     frames = []
     for node in nodes:
         node_history = raw[raw["node"] == node].sort_values("timestamp").reset_index(drop=True)
-        frames.append(forecast_node(node_history, node, horizon, models))
+        frames.append(forecast_node(node_history, node, horizon, models, interval_models))
     return pd.concat(frames, ignore_index=True)
 
 

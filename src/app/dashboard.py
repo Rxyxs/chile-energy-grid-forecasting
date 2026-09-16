@@ -18,7 +18,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from src.models.forecast import RAW_PATH, forecast_node, load_models
+from src.models.forecast import RAW_PATH, forecast_node, load_interval_models, load_models
 from src.models.train_forecaster import (
     CATEGORICAL_FEATURES,
     DEFAULT_TARGET,
@@ -41,6 +41,17 @@ def load_price_model():
 @st.cache_resource
 def load_all_models():
     return load_models()
+
+
+@st.cache_resource
+def load_all_interval_models():
+    """Modelos de intervalo conformalizado (opcional): si `conformal.py`
+    todavía no corrió, el panel de pronóstico a futuro simplemente no dibuja
+    la banda, en vez de romper el dashboard entero."""
+    try:
+        return load_interval_models()
+    except FileNotFoundError:
+        return None
 
 
 @st.cache_data
@@ -144,7 +155,8 @@ def render_future_forecast(node: str, node_history: pd.DataFrame) -> None:
     horizon = st.slider("Horizonte a pronosticar (horas)", 6, 72, 24, step=6, key="horizon")
 
     models = load_all_models()
-    future_df = forecast_node(node_history, node, horizon, models)
+    interval_models = load_all_interval_models()
+    future_df = forecast_node(node_history, node, horizon, models, interval_models)
 
     history_tail = node_history.tail(72)
     fig = go.Figure()
@@ -152,6 +164,16 @@ def render_future_forecast(node: str, node_history: pd.DataFrame) -> None:
         x=history_tail["timestamp"], y=history_tail[DEFAULT_TARGET],
         name="Histórico", line=dict(color="#2a78d6", width=2),
     ))
+
+    lower_col, upper_col = f"{DEFAULT_TARGET}_lower", f"{DEFAULT_TARGET}_upper"
+    has_interval = interval_models is not None and lower_col in future_df.columns
+    if has_interval:
+        fig.add_trace(go.Scatter(
+            x=pd.concat([future_df["timestamp"], future_df["timestamp"][::-1]]),
+            y=pd.concat([future_df[upper_col], future_df[lower_col][::-1]]),
+            fill="toself", fillcolor="rgba(27,175,122,0.15)", line=dict(color="rgba(0,0,0,0)"),
+            name="Intervalo 90% (conformal)", hoverinfo="skip",
+        ))
     fig.add_trace(go.Scatter(
         x=future_df["timestamp"], y=future_df[DEFAULT_TARGET],
         name=f"Pronóstico +{horizon}h", line=dict(color="#1baf7a", width=2, dash="dot"),
@@ -162,6 +184,13 @@ def render_future_forecast(node: str, node_history: pd.DataFrame) -> None:
         "Cada hora futura se predice usando las horas previas (reales o ya "
         "pronosticadas) como historia -- así es como funcionaría en producción, "
         "donde el futuro real todavía no existe."
+        + (
+            " La banda sombreada es el intervalo de predicción al 90% "
+            "(Conformalized Quantile Regression, `src/models/conformal.py`), "
+            "calibrado con cobertura empírica medida, no solo prometida."
+            if has_interval
+            else " Corre `python -m src.models.conformal` para habilitar la banda de incertidumbre."
+        )
     )
 
 
