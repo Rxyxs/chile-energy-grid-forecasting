@@ -12,11 +12,15 @@ from streamlit.testing.v1 import AppTest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_PATH = PROJECT_ROOT / "src" / "app" / "dashboard.py"
-METRICS_PATH = PROJECT_ROOT / "data" / "processed" / "forecaster_metrics.json"
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+
+# El dashboard carga los modelos entrenados (`forecaster_*.joblib`), que no se versionan. No se
+# usa `forecaster_metrics.json` como señal porque ese si esta en git y existe en un clon limpio.
+MODELS_AVAILABLE = any(PROCESSED_DIR.glob("forecaster_*.joblib"))
 
 pytestmark = pytest.mark.skipif(
-    not METRICS_PATH.exists(),
-    reason="Requiere haber corrido antes fetch_energy_data / build_features / train_forecaster.",
+    not MODELS_AVAILABLE,
+    reason="Requiere los modelos entrenados: corre fetch_energy_data / build_features / train_forecaster.",
 )
 
 
