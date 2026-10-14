@@ -150,11 +150,15 @@ Walk-forward validation, 5 folds, target `marginal_cost_usd_mwh` (`python -m src
 | Seasonal naive (24h) | 12.08% | $10.70/MWh | -- |
 | LightGBM (Optuna-tuned params) | 6.26% | $5.54/MWh | -- |
 | XGBoost | 7.06% | $6.27/MWh | -- |
-| MLP PyTorch — ReLU | 5.59% | $4.95/MWh | 0.55 |
-| MLP PyTorch — GELU | 5.44% | $4.82/MWh | 0.50 |
-| **MLP PyTorch — Swish** | **5.42%** | **$4.80/MWh** | 0.48 |
+| MLP PyTorch — ReLU | 5.56% | $4.93/MWh | 0.47 |
+| MLP PyTorch — GELU | 5.55% | $4.92/MWh | 0.46 |
+| **MLP PyTorch — Swish** | **5.47%** | **$4.84/MWh** | 0.50 |
 
-**On this target, the PyTorch MLP beats both tree ensembles under all three activations**, and Swish narrowly edges out GELU and ReLU — consistent with Swish/GELU's typical edge over ReLU on this kind of smooth tabular regression, though the three stay close enough (5.42%–5.59%) that architecture and loss (Huber vs. tree-default MSE) plausibly matter more here than the specific activation choice. Metrics/predictions are persisted to `data/processed/metrics.duckdb` (table `model_comparison`, one row per model/variant) alongside the per-fold JSON detail in `torch_forecaster_metrics.json`; explanatory plots (predicted-vs-actual, residual histogram, loss/epoch, activation comparison bar chart) are written to `data/processed/torch_*.png`.
+**On this target, the PyTorch MLP beats both tree ensembles under all three activations**, and Swish narrowly edges out GELU and ReLU — consistent with Swish/GELU's typical edge over ReLU on this kind of smooth tabular regression, though the three stay close enough (5.47%–5.56%) that architecture and loss (Huber vs. tree-default MSE) plausibly matter more here than the specific activation choice. Metrics/predictions are persisted to `data/processed/metrics.duckdb` (table `model_comparison`, one row per model/variant) alongside the per-fold JSON detail in `torch_forecaster_metrics.json`; explanatory plots (predicted-vs-actual, residual histogram, loss/epoch, activation comparison bar chart) are written to `data/processed/torch_*.png`.
+
+**Training protocol.** Inside each walk-forward fold, the last 15% of the training hours (all nodes at once) is held out as validation; the fold's test hours are not touched until evaluation. Each network trains for at least 100 epochs (at most 300), then early stopping ends the run after 20 epochs without improvement in validation loss and restores the best epoch's weights; the learning rate halves on plateaus. The full state is checkpointed every epoch (`data/checkpoints/`), so an interrupted run resumes where it stopped and the GIF script reuses the report's checkpoints instead of retraining. The activation is chosen on validation loss, not on test WAPE.
+
+**What longer training showed.** Validation loss bottoms out between epoch 17 and 83 in all 15 runs (3 activations × 5 folds), so every run stops right after the 100-epoch minimum and returns the weights of an earlier epoch. Past that point the network only fits the training hours better. Compared with the previous fixed 40-epoch run, Swish's WAPE moves from 5.42% to 5.47%, essentially unchanged and now with 15% fewer hours to fit on. The MLP still beats LightGBM (6.26%) and XGBoost (7.06%).
 
 The GIF below replays the real per-epoch Huber loss for the Swish run (same `final_history` used for the static PNG), with a floating label tracking the current train/val value as the line advances.
 

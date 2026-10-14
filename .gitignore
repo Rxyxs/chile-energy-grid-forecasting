@@ -11,3 +11,6 @@ __pycache__/
 *.duckdb
 optuna_*.db
 .DS_Store
+
+# Checkpoints de entrenamiento del MLP (se regeneran)
+data/checkpoints/
