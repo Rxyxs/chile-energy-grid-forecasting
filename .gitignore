@@ -14,3 +14,6 @@ optuna_*.db
 
 # Checkpoints de entrenamiento del MLP (se regeneran)
 data/checkpoints/
+
+# Series reales pequeñas que anclan el panel (clima Open-Meteo, generación mensual SEN, CMg Crucero): se versionan
+!data/real/*.csv

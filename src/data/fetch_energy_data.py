@@ -23,6 +23,8 @@ import holidays
 import numpy as np
 import pandas as pd
 
+from src.data import real_sources
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_PATH = PROJECT_ROOT / "data" / "raw" / "sen_hourly_data.csv"
 
@@ -199,7 +201,8 @@ def _wind_index(n: int, rng: np.random.Generator, mean_reversion: float = 0.02) 
     return idx
 
 
-def _generate_node_series(node: str, params: dict, timestamps: pd.DatetimeIndex, rng: np.random.Generator) -> pd.DataFrame:
+def _generate_node_series(node: str, params: dict, timestamps: pd.DatetimeIndex, rng: np.random.Generator,
+                          weather: pd.DataFrame | None = None) -> pd.DataFrame:
     n = len(timestamps)
     hour = timestamps.hour.to_numpy().astype(float)
     day_of_year = timestamps.dayofyear.to_numpy()
@@ -221,6 +224,14 @@ def _generate_node_series(node: str, params: dict, timestamps: pd.DatetimeIndex,
     wind_speed_ms = _wind_speed_ms(wind_idx, rng, n)
 
     temperature_c = _temperature_c(node, hour, day_of_year, rng, n)
+
+    if weather is not None:
+        # Clima real (Open-Meteo/ERA5) en la ubicación de la barra: reemplaza al simulado. Los sorteos
+        # simulados se hacen igual, para que el resto de la secuencia aleatoria no cambie.
+        w = weather.set_index("timestamp").reindex(timestamps)
+        ghi_wm2 = w["ghi_w_m2"].to_numpy(dtype=float)
+        wind_speed_ms = w["wind_speed_ms"].to_numpy(dtype=float)
+        temperature_c = w["temperature_c"].to_numpy(dtype=float)
 
     # --- Solar: generación como fracción lineal de GHI sobre el pico de cielo
     # despejado del nodo -- la irradiancia YA incorpora estacionalidad, curva
@@ -269,35 +280,86 @@ def _generate_node_series(node: str, params: dict, timestamps: pd.DatetimeIndex,
     # --- Costo marginal: función de la demanda residual (demanda - renovables),
     # más picos ocasionales de estrés de oferta / restricciones de transmisión.
     # Precios cercanos a 0 con alta solar y baja demanda residual son un fenómeno
-    # real y conocido en el norte del SEN, no un artefacto del modelo. ---
-    residual = demand_mwh - solar_mwh - wind_mwh
-    residual_ratio = residual / (params["base_demand_mwh"] * 1.3)
-    price = 45.0 + 95.0 * np.clip(residual_ratio, -0.5, 1.5)
-    spike_mask = rng.random(n) < 0.006
-    price = price + spike_mask * rng.uniform(60, 180, n)
-    price = np.clip(price + rng.normal(0, 4.0, n), 0, 350)
-
-    return pd.DataFrame({
+    # real y conocido en el norte del SEN, no un artefacto del modelo. Los picos y
+    # el ruido se sortean aquí y el precio se arma en `_price`, para poder
+    # recalcularlo después de calibrar demanda y renovables con datos reales. ---
+    spike = (rng.random(n) < 0.006) * rng.uniform(60, 180, n)
+    price_noise = rng.normal(0, 4.0, n)
+    df = pd.DataFrame({
         "timestamp": timestamps,
         "node": node,
-        "solar_generation_mwh": solar_mwh.round(2),
-        "wind_generation_mwh": wind_mwh.round(2),
-        "demand_mwh": demand_mwh.round(2),
-        "marginal_cost_usd_mwh": price.round(2),
-        "ghi_w_m2": ghi_wm2.round(1),
-        "wind_speed_ms": wind_speed_ms.round(2),
-        "temperature_c": temperature_c.round(2),
+        "solar_generation_mwh": solar_mwh,
+        "wind_generation_mwh": wind_mwh,
+        "demand_mwh": demand_mwh,
+        "ghi_w_m2": ghi_wm2,
+        "wind_speed_ms": wind_speed_ms,
+        "temperature_c": temperature_c,
+        "_spike": spike,
+        "_noise": price_noise,
     })
+    df["marginal_cost_usd_mwh"] = _price(df, params)
+    return df
 
 
-def generate_energy_data(seed: int = RANDOM_SEED) -> pd.DataFrame:
-    """Genera el panel horario completo (todos los nodos) para 2024-2025."""
+def _price(df: pd.DataFrame, params: dict) -> np.ndarray:
+    residual = df["demand_mwh"] - df["solar_generation_mwh"] - df["wind_generation_mwh"]
+    residual_ratio = residual / (params["base_demand_mwh"] * 1.3)
+    price = 45.0 + 95.0 * np.clip(residual_ratio, -0.5, 1.5) + df["_spike"] + df["_noise"]
+    return np.clip(price.to_numpy(), 0, 350)
+
+
+def _calibrate_to_real(panel: pd.DataFrame) -> pd.DataFrame:
+    """Ancla el panel a las series mensuales reales.
+
+    - Solar, eólica y demanda: se multiplican por un factor mensual que lleva la
+      forma mensual del agregado de las 5 barras a la forma mensual real de la
+      generación solar, eólica y total del SEN (datos.gob.cl). Se conserva el
+      nivel de cada barra; cambia la estacionalidad, que pasa a ser la real.
+    - Precio: se recalcula con la demanda residual ya calibrada y luego se
+      escala mes a mes para que el promedio mensual de Crucero 220 kV iguale el
+      costo marginal real publicado por la CNE; el mismo factor se aplica a
+      todas las barras, que conservan sus diferencias relativas.
+    """
+    gen = real_sources.load_generation().set_index("month")
+    month = panel["timestamp"].dt.strftime("%Y-%m")
+    for col, real_col in (("solar_generation_mwh", "solar_mwh"), ("wind_generation_mwh", "wind_mwh"),
+                          ("demand_mwh", "total_mwh")):
+        sim_monthly = panel.groupby(month)[col].sum()
+        factors = real_sources.calibration_factors(sim_monthly, gen[real_col])
+        panel[col] = panel[col] * month.map(factors).fillna(1.0).to_numpy()
+    for node, params in NODES.items():
+        mask = panel["node"] == node
+        panel.loc[mask, "marginal_cost_usd_mwh"] = _price(panel.loc[mask], params)
+    cmg = real_sources.load_cmg().set_index("month")["cmg_usd_mwh"]
+    crucero = panel[panel["node"] == "Crucero_220kV"]
+    sim_cmg = crucero.groupby(crucero["timestamp"].dt.strftime("%Y-%m"))["marginal_cost_usd_mwh"].mean()
+    price_factor = (cmg.reindex(sim_cmg.index) / sim_cmg).fillna(1.0)
+    panel["marginal_cost_usd_mwh"] = np.clip(panel["marginal_cost_usd_mwh"] * month.map(price_factor).to_numpy(), 0, None)
+    return panel
+
+
+def generate_energy_data(seed: int = RANDOM_SEED, use_real: bool = True) -> pd.DataFrame:
+    """Genera el panel horario completo (todos los nodos) para 2024-2025.
+
+    Con ``use_real=True`` (por defecto) el clima es el real de cada barra y el
+    panel se calibra con la generación mensual real del SEN y el costo marginal
+    mensual real de Crucero (ver ``real_sources``). Con ``use_real=False`` es el
+    simulador original, sin ninguna fuente externa."""
     timestamps = pd.date_range(START_DATE, END_DATE, freq="h")
+    weather = real_sources.load_weather() if use_real else None
     frames = [
-        _generate_node_series(node, params, timestamps, np.random.default_rng(seed + i))
+        _generate_node_series(node, params, timestamps, np.random.default_rng(seed + i),
+                              weather=None if weather is None else weather[weather["node"] == node])
         for i, (node, params) in enumerate(NODES.items())
     ]
-    return pd.concat(frames, ignore_index=True)
+    panel = pd.concat(frames, ignore_index=True)
+    if use_real:
+        panel = _calibrate_to_real(panel)
+    panel = panel.drop(columns=["_spike", "_noise"])
+    rounding = {"solar_generation_mwh": 2, "wind_generation_mwh": 2, "demand_mwh": 2, "marginal_cost_usd_mwh": 2,
+                "ghi_w_m2": 1, "wind_speed_ms": 2, "temperature_c": 2}
+    return panel.round(rounding)[["timestamp", "node", "solar_generation_mwh", "wind_generation_mwh", "demand_mwh",
+                                  "marginal_cost_usd_mwh", "ghi_w_m2", "wind_speed_ms", "temperature_c"]]
 
 
 if __name__ == "__main__":
