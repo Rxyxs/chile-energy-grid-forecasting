@@ -1,6 +1,6 @@
 # ⚡ Pronóstico de la Red Eléctrica Chilena (SEN)
 
-[ 🇺🇸 [English](README.md) ] | [ 🇨🇱 Español ]
+[[English](README.md) ] | [Español ]
 
 ![CI](https://github.com/Rxyxs/chile-energy-grid-forecasting/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
