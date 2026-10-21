@@ -16,7 +16,7 @@ import numpy as np
 from src.models.baselines import naive_metrics, seasonal_naive_metrics
 from src.models.metrics_db import get_connection, record_comparison_row
 from src.models.rolling_stability import LGBM_PARAMS, XGB_PARAMS, _prepare_fold as _tree_prepare_fold
-from src.models.torch_forecaster import DEFAULT_TARGET, N_SPLITS, compare_activations, predict_mlp
+from src.models.torch_forecaster import DEFAULT_TARGET, MAX_EPOCHS, N_SPLITS, compare_activations, predict_mlp
 from src.models.torch_plots import plot_activation_comparison, plot_loss_curve, plot_predicted_vs_actual, plot_residuals
 from src.models.train_forecaster import get_feature_columns, load_features
 from src.models.validation import get_walk_forward_folds, wape
@@ -51,16 +51,22 @@ def _tree_wape_mae(df, target_column: str, n_splits: int, model_cls, params: dic
     }
 
 
-def run(target_column: str = DEFAULT_TARGET, n_splits: int = N_SPLITS, epochs: int = 40) -> None:
+def run(target_column: str = DEFAULT_TARGET, n_splits: int = N_SPLITS, epochs: int = MAX_EPOCHS) -> None:
     df = load_features()
 
     print(f"=== Reporte MLP PyTorch -- {target_column} ===")
     print("Entrenando ReLU / GELU / Swish (mismos folds walk-forward)...")
     activation_results = compare_activations(df, target_column, n_splits=n_splits, epochs=epochs)
 
-    best_activation = min(activation_results, key=lambda a: activation_results[a]["mean_wape"])
+    # La activación se elige con la loss de validación (horas reservadas dentro del train de cada fold),
+    # no con el WAPE de test: elegir mirando test lo convertiría en parte del entrenamiento.
+    best_activation = min(activation_results, key=lambda a: activation_results[a]["mean_best_val_loss"])
     best = activation_results[best_activation]
-    print(f"Mejor activación: {best_activation} (WAPE promedio {best['mean_wape']:.2f}%)")
+    print(f"Mejor activación (validación): {best_activation} (WAPE promedio de test {best['mean_wape']:.2f}%)")
+    for activation, result in activation_results.items():
+        epochs = [m["epochs_run"] for m in result["fold_metrics"]]
+        print(f"  {activation:6s} val loss {result['mean_best_val_loss']:.4f} | WAPE {result['mean_wape']:.2f}% | "
+              f"MAE {result['mean_mae']:.2f} | épocas por fold {epochs}")
 
     feature_columns = get_feature_columns(df)
     clean_df = df.dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
