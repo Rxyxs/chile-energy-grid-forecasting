@@ -12,10 +12,10 @@
 ![Polars](https://img.shields.io/badge/Polars-feature%20engineering-CD792C)
 ![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
 ![Conformal Prediction](https://img.shields.io/badge/Conformal%20Prediction-CQR%20intervals-4a3aa7)
-![pytest](https://img.shields.io/badge/pytest-53%20passing-0A9EDC?logo=pytest&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-61%20passing-0A9EDC?logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-Hourly multi-target forecasting of Chile's National Electric System (SEN) — solar generation, wind generation, demand, and marginal cost (spot price) — for 5 real 220kV nodes, with LightGBM models tuned via Optuna, validated walk-forward against naive/seasonal baselines, real weather-driven features (solar irradiance, wind speed, temperature) closing the causal gap between weather and renewable output, a Rolling-Origin CV stability comparison against XGBoost, a recursive multi-step-ahead forecasting engine, and a Streamlit monitoring dashboard.
+Hourly multi-target forecasting of Chile's National Electric System (SEN) — solar generation, wind generation, demand, and marginal cost (spot price) — for 5 real 220kV nodes, on an hourly panel anchored to real weather (Open-Meteo/ERA5), real monthly SEN generation and the real Crucero marginal cost, with LightGBM models tuned via Optuna, validated walk-forward against naive/seasonal baselines, real weather-driven features (solar irradiance, wind speed, temperature) closing the causal gap between weather and renewable output, a Rolling-Origin CV stability comparison against XGBoost, a recursive multi-step-ahead forecasting engine, and a Streamlit monitoring dashboard.
 
 ## 1. Business context
 
@@ -25,39 +25,47 @@ Chile's SEN is dominated by renewables in its northern nodes (some of the highes
 
 | Metric | Result | What it means |
 |---|---|---|
-| Solar generation WAPE | **3.64%** (vs. 26.95% naive, 19.46% seasonal-naive) | Largest LightGBM edge -- strong deterministic diurnal structure persistence can't exploit |
-| Demand WAPE | **2.55%** (vs. 4.79% naive) | Nearly half the error of 1-hour persistence |
-| Marginal cost WAPE | **5.87%** (vs. 10.26% naive) | Cost-exposure forecasting a generator/large consumer can act on |
-| Marginal cost, 90% prediction interval | **89.9% empirical coverage** (conformalized) vs. 83.9% from the raw LightGBM quantiles | The point WAPE above is a single number; this is the actual, measured risk band a generator/consumer would size exposure against |
-| Honest finding: wind | Naive (9.93%) narrowly beats LightGBM (10.31%) | Root-caused, not hidden -- wind generation here is close to a pure mean-reverting random walk, where persistence is close to information-theoretically optimal |
-| Cross-model stability (marginal cost) | LightGBM CV 0.051 vs. XGBoost CV 0.133 | ~2.6x more stable across rolling 14-day test folds -- a concrete reason to prefer LightGBM for this target, not just a general preference |
+| Solar generation WAPE | **5.55%** (vs. 28.89% naive, 10.71% seasonal-naive) | Real cloud cover makes solar harder than the old simulator's, but the diurnal structure still gives LightGBM a 2x edge over yesterday's profile |
+| Demand WAPE | **2.54%** (vs. 4.98% naive) | Half the error of 1-hour persistence |
+| Marginal cost WAPE | **8.77%** (vs. 11.09% naive) | Cost-exposure forecasting on prices whose monthly level is the real Crucero marginal cost |
+| Marginal cost, 90% prediction interval | **88.1% empirical coverage** (conformalized) vs. 76.2% from the raw LightGBM quantiles | The raw quantiles miss one hour in four; conformalizing brings it close to nominal |
+| Wind | LightGBM 22.40% vs. naive 23.29% | Real wind at these substations is light and intermittent (zero output 20-79% of hours); persistence is a hard baseline |
+| Best model on price | PyTorch MLP, 7.83-8.73% WAPE vs. 10.07% for LightGBM with default parameters | Same folds and features; the network beats both tree ensembles on this target |
 
 ## 2. Data
 
-Chile's grid coordinator (CEN) does not expose a simple, free public API for historical hourly data by node, so this project generates **2 years (2024–2025) of synthetic hourly data** for 5 real SEN nodes/barras, built to reproduce the actual mechanics of the market rather than being random noise:
+**What is real and what is simulated.** Chile's grid coordinator (CEN) publishes hourly marginal cost by bus, but its API requires an institutional account and its website blocks automated downloads. This project therefore anchors a simulated hourly panel to every real series that *is* publicly downloadable (`src/data/real_sources.py`, cached in `data/real/` so the pipeline and tests run offline):
 
-| Node | Profile | Solar cap. (MWh) | Wind cap. (MWh) | Base demand (MWh) |
-|---|---|---|---|---|
-| Crucero_220kV | Mining (near-flat, 24/7 load) | 220 | 40 | 180 |
-| Cardones_220kV | Mixed | 200 | 60 | 90 |
-| Quillota_220kV | Urban (double peak) | 110 | 70 | 140 |
-| Alto_Jahuel_220kV | Urban (double peak) | 130 | 30 | 320 |
-| Charrua_220kV | Industrial, high wind | 70 | 140 | 150 |
+| Series | Source | Granularity | How it is used |
+|---|---|---|---|
+| Solar irradiance (GHI), wind speed at 100 m, temperature | Open-Meteo (ERA5 reanalysis) at each substation's coordinates | Hourly, real | Replaces the simulated weather; solar and wind generation are derived from it |
+| SEN gross generation by technology (total, solar, wind) | datos.gob.cl (CNE), plant-level | Monthly, real | Calibrates the monthly shape of solar, wind and demand |
+| Marginal cost at Crucero 220 kV | CNE monthly reports (extracted in this portfolio's SAG digital twin) | Monthly, real | Sets the monthly price level |
+| Hour-to-hour demand profile, price formation, price spikes | Simulator (`src/data/fetch_energy_data.py`) | Hourly, simulated | Fills in what no public source provides |
 
-Key modeling choices in the generator (`src/data/fetch_energy_data.py`):
-- **Weather comes first, generation is derived from it — not the other way around.** The generator computes physical weather signals (`ghi_w_m2`: global horizontal solar irradiance, W/m²; `wind_speed_ms`; `temperature_c`) per node, each reflecting real Chilean geography (the Atacama Desert nodes get some of the highest clear-sky GHI in the world; southern nodes are cooler and cloudier), and **solar/wind generation are mathematically derived from them** — solar as a linear fraction of clear-sky GHI, wind through a simplified turbine power curve (cut-in/rated wind speed, not an arbitrary exponent) — instead of being computed as a separate, disconnected process.
-- **Solar** follows a seasonal daylight window (Southern Hemisphere: longer days in December, shorter in June) and a diurnal bell curve, modulated by a per-day cloudiness factor — all captured in `ghi_w_m2`.
-- **Wind** speed is a mean-reverting, autocorrelated random walk with occasional regime shifts ("wind fronts"), not diurnal — matching how wind behaves relative to solar; generation follows a power curve (zero below cut-in, rising with wind speed, flat at rated capacity above it).
-- **Demand** uses a profile-specific hourly shape (mining is nearly flat; urban has a clear morning/evening double peak), a weekend/holiday discount (via the `holidays` library's Chilean calendar), a 3%/year growth trend, and a modest HVAC-style temperature effect (extra load outside an 18–24°C comfort band) — deliberately secondary to the hourly/calendar shape, which stays the dominant demand driver, matching how real demand responds to temperature.
-- **Marginal cost** is derived from *residual demand* (demand minus solar and wind), following real merit-order logic, plus occasional supply-stress/transmission-constraint price spikes. Near-zero prices during high solar and low residual demand are a real, documented phenomenon in northern Chile — not a generator artifact.
+So the weather and the seasonality are real; the hourly price and demand are simulated *around* real monthly levels. Crucero's monthly average price matches the real CNE figure to within 1% (pinned by `tests/test_real_sources.py`). `generate_energy_data(use_real=False)` still produces the original fully simulated panel.
 
-Raw data and processed features are git-ignored and regenerated on demand (see [Getting started](#8-getting-started)).
+| Node | Location | Profile | Solar cap. (MWh) | Wind cap. (MWh) | Base demand (MWh) |
+|---|---|---|---|---|---|
+| Crucero_220kV | María Elena, Antofagasta | Mining (near-flat, 24/7 load) | 220 | 40 | 180 |
+| Cardones_220kV | Copiapó, Atacama | Mixed | 200 | 60 | 90 |
+| Quillota_220kV | Quillota, Valparaíso | Urban (double peak) | 110 | 70 | 140 |
+| Alto_Jahuel_220kV | Buin, Metropolitana | Urban (double peak) | 130 | 30 | 320 |
+| Charrua_220kV | Cabrero, Biobío | Industrial, high wind | 70 | 140 | 150 |
+
+How the panel is built:
+- **Weather comes first, generation is derived from it.** Solar is a linear fraction of the real GHI over each node's clear-sky peak; wind goes through a turbine power curve (cut-in 3 m/s, rated 12.5 m/s) applied to the real 100 m wind speed. Real wind at Alto Jahuel, Cardones and Quillota averages about 2 m/s, below cut-in most of the time, so those nodes produce no wind 72-79% of hours, which is honest: there are no wind farms at those substations.
+- **Monthly calibration.** Solar, wind and demand are multiplied by a per-month factor that turns the five-node aggregate's monthly shape into the real SEN monthly shape, keeping each node's average level.
+- **Demand** uses a profile-specific hourly shape, the Chilean holiday calendar, a growth trend and a temperature (HVAC) effect, now driven by real temperature.
+- **Marginal cost** is derived from residual demand (demand minus solar and wind) following merit-order logic, plus occasional supply-stress spikes, recomputed after calibration and then scaled month by month to the real Crucero marginal cost. Near-zero prices at high solar are a real phenomenon in northern Chile.
+
+Raw data and processed features are git-ignored and regenerated on demand; only the small real series in `data/real/` are versioned (see [Getting started](#8-getting-started)).
 
 ## 3. Architecture
 
 ```mermaid
 flowchart LR
-    A["fetch_energy_data.py\nsynthetic SEN generator\n+ weather (GHI/wind/temp)"] -->|"data/raw/sen_hourly_data.csv"| B["build_features.py\nPolars feature engineering\n+ weather lags"]
+    A["fetch_energy_data.py\nSEN panel anchored to real\nweather + monthly generation/price"] -->|"data/raw/sen_hourly_data.csv"| B["build_features.py\nPolars feature engineering\n+ weather lags"]
     B -->|"data/processed/sen_features.parquet"| C["train_forecaster.py\nOptuna tuning + LightGBM\nx4 targets + baselines"]
     B --> G["rolling_stability.py\nRolling-Origin CV\nLightGBM vs XGBoost"]
     B --> H["torch_forecaster.py\nPyTorch MLP + Huber loss\nReLU/GELU/Swish"]
@@ -94,44 +102,44 @@ Error is reported as **WAPE** (Weighted Absolute Percentage Error: `sum(|error|)
 
 ### 5.1 Walk-forward validation: LightGBM (Optuna-tuned, weather-augmented) vs. baselines
 
-Walk-forward validation, 5 folds each, 48 shared features (36 before this round + 12 weather lags), LightGBM (Optuna-tuned) vs. two baselines evaluated on identical folds — **naive** (persist the value from 1h ago) and **seasonal naive** (persist the value from the same hour 24h ago). Bold marks the actual best of the three per row — not always LightGBM, on purpose (see the honest finding below):
+Walk-forward validation, 5 folds each, 48 shared features, LightGBM (Optuna-tuned) vs. two baselines evaluated on identical folds — **naive** (persist the value from 1h ago) and **seasonal naive** (same hour 24h ago). Bold marks the best of the three per row:
 
 | Target | LightGBM WAPE | Naive WAPE | Seasonal WAPE | LightGBM MAE |
 |---|---|---|---|---|
-| Solar generation | **3.64%** | 26.95% | 19.46% | 1.22 MWh |
-| Wind generation | 10.31% | **9.93%** | 44.89% | 2.13 MWh |
-| Demand | **2.55%** | 4.79% | 5.60% | 4.30 MWh |
-| Marginal cost | **5.87%** | 10.26% | 12.08% | $5.20/MWh |
+| Solar generation | **5.55%** | 28.89% | 10.71% | 2.01 MWh |
+| Wind generation | **22.40%** | 23.29% | 82.74% | 2.17 MWh |
+| Demand | **2.54%** | 4.98% | 5.67% | 4.21 MWh |
+| Marginal cost | **8.77%** | 11.09% | 11.71% | $5.73/MWh |
 
-All numbers come directly from running `python -m src.models.train_forecaster` end to end (seed 42, 87,720 rows over 5 nodes × 17,544 hours, 20 Optuna trials/target). LightGBM clearly beats both baselines on solar, demand, and price; solar's WAPE dropped from 4.57% to roughly 3.6% relative to the pre-weather baseline, the single largest gain in that round of work. (These specific decimals will drift by a few hundredths of a point between runs — LightGBM's multi-threaded histogram building isn't bit-reproducible even with a fixed `random_state`, and that noise compounds through Optuna's adaptive search into which hyperparameters it settles on. It doesn't move any conclusion below.)
+All numbers come from running `python -m src.models.train_forecaster` end to end on the weather-anchored panel (seed 42, 87,720 rows over 5 nodes × 17,544 hours, 20 Optuna trials per target). LightGBM beats both baselines on every target.
 
-**Honest finding, reported as-is rather than tuned away: on wind, naive 1-hour persistence (9.93% WAPE) now narrowly beats LightGBM (10.31%), even with real weather features and Optuna tuning.** This flips the previous README's own stated hypothesis — "a real next step would be adding weather-forecast features [to close wind's narrow LightGBM-vs-naive gap]" — and the controlled ablation in §5.2 shows *why* that hypothesis doesn't hold: `wind_generation_mwh` here is close to a pure mean-reverting random walk (very weak 2%/hour reversion, ~0.99 hour-to-hour autocorrelation in the underlying wind-speed process), a regime where 1-step persistence is close to the information-theoretically best point forecast regardless of what other features are available — a real, well-documented property of short-horizon wind forecasting, not a bug in this pipeline. Solar doesn't have this problem because it has strong deterministic structure (a diurnal/seasonal cycle) that persistence can't exploit but irradiance and calendar features can.
+**What changed with real weather.** With the old simulated weather, solar scored 3.64% and naive persistence beat LightGBM on wind (9.93% vs. 10.31%). With real weather, solar is harder (5.55%) because real cloud cover is less predictable than the simulator's daily cloud draw, and the seasonal baseline improves sharply (19.46% → 10.71%) because real clear-sky days in the Atacama repeat almost exactly from one day to the next. Wind flips the other way: real wind at these substations is light and often below turbine cut-in, so generation is zero for long stretches and its WAPE is large (22-23%) for every model, but LightGBM now edges persistence.
 
 ### 5.2 Isolating weather's real effect: a controlled ablation (`notebooks/02_Weather_Augmented_Rolling_CV.ipynb`)
 
-§5.1's improvement (solar 4.57%→3.60%) confounds two changes at once: the new weather features, *and* Optuna re-tuning hyperparameters over the new, larger feature space. The notebook isolates the weather features alone, holding hyperparameters **fixed** across a with/without comparison:
+The notebook isolates the weather features, holding hyperparameters **fixed** across a with/without comparison:
 
 | Target | WAPE without weather | WAPE with weather | Delta |
 |---|---|---|---|
-| Solar generation | 3.79% | 3.69% | **+0.10 pts** |
-| Wind generation | 10.55% | 10.55% | +0.003 pts (none) |
-| Demand | 2.55% | 2.55% | −0.01 pts |
-| Marginal cost | 6.18% | 6.26% | −0.08 pts |
+| Solar generation | 5.98% | 5.69% | **+0.29 pts** |
+| Wind generation | 23.24% | 22.69% | **+0.54 pts** |
+| Demand | 2.56% | 2.55% | +0.01 pts |
+| Marginal cost | 9.82% | 10.07% | −0.25 pts |
 
-**The isolated effect is real for solar, essentially zero for wind, and slightly negative for demand/price** — much smaller than §5.1's headline number suggested, and that gap between the two tables *is itself the finding*: a naive before/after comparison that changes features and re-tunes hyperparameters at the same time overstates how much of the credit belongs to the features specifically. Wind shows no measurable benefit because `wind_generation_mwh`'s own lags already encode nearly all the information `wind_speed_ms` lags could add (generation is a near-deterministic function of wind speed here) — the two feature sets are redundant, not complementary. Demand and price got marginally *worse* with more features and no re-tuning — a standard, well-known effect of adding dimensionality without adjusting regularization for it.
+**With real weather, weather lags help both renewables.** Solar gains 0.29 points and wind 0.54, where the simulator gave wind nothing (+0.003). Real wind is not a deterministic function of its own past output, so lagged wind speed carries information the generation lags do not. Demand is unchanged, and price gets slightly worse with the extra features and no re-tuning, a standard effect of adding dimensionality without adjusting regularization.
 
 ### 5.3 Rolling-Origin CV: LightGBM vs. XGBoost temporal stability
 
-8 folds, fixed 180-day training window / 14-day test window, sliding forward (`src/models/rolling_stability.py` — XGBoost, listed in `requirements.txt` since the start of this project but never actually used anywhere until now):
+8 folds, fixed 180-day training window / 14-day test window, sliding forward (`src/models/rolling_stability.py`):
 
 | Target | LightGBM mean WAPE (CV) | XGBoost mean WAPE (CV) |
 |---|---|---|
-| Solar | 4.10% (0.100) | 4.21% (0.115) |
-| Wind | 10.82% (0.142) | 10.99% (0.137) |
-| Demand | 2.51% (0.046) | 2.51% (0.040) |
-| Marginal cost | **6.87% (0.051)** | 7.89% (0.133) |
+| Solar | 5.02% (0.204) | 5.14% (0.202) |
+| Wind | 24.33% (0.206) | 24.81% (0.215) |
+| Demand | 2.56% (0.046) | 2.60% (0.063) |
+| Marginal cost | **7.58% (0.084)** | 8.39% (0.111) |
 
-CV = coefficient of variation (std/mean) of fold WAPE — lower means more stable across time blocks. Three targets are a wash between the two models, but **on marginal cost, XGBoost's WAPE swings from 6.72% to 9.96% depending which 14-day block it's evaluated on (CV 0.133), while LightGBM stays in a much tighter 6.18%–7.32% band (CV 0.051)** — roughly 2.6x more stable. This is exactly the kind of problem expanding walk-forward CV (§5.1, used for the deployed model) structurally can't surface: with a training set that keeps growing, one bad fold gets diluted into the average instead of standing out. A model that's fine on average but unreliable fold-to-fold is a real production risk that only a fixed-window comparison like this one exposes — a concrete, data-backed reason to prefer LightGBM over XGBoost for the price target specifically, not just a general preference.
+CV = coefficient of variation (std/mean) of fold WAPE; lower means more stable across time blocks. LightGBM is at least as good as XGBoost on every target, and on marginal cost it is both more accurate (7.58% vs. 8.39%) and more stable (CV 0.084 vs. 0.111, about 1.3x). With the old simulated panel the stability gap on price was 2.6x; with real monthly price levels both models face the same real swings, and the gap narrows. Solar's fold-to-fold variation (CV 0.20) is now much higher than before (0.10) for both models: real cloudy and clear weeks differ far more than simulated ones.
 
 The Streamlit dashboard's historical panel shows real vs. forecasted price on the last fold's out-of-sample test set — genuine held-out predictions, not in-sample fit — and a separate live panel runs the actual recursive multi-step forecaster on hours that don't exist in the dataset at all.
 
@@ -142,49 +150,47 @@ The Streamlit dashboard's historical panel shows real vs. forecasted price on th
 - **A custom Huber loss** (`torch_forecaster.huber_loss`, quadratic for small residuals, linear beyond `delta=1.0`), more robust to `marginal_cost_usd_mwh`'s supply-stress price spikes than the MSE-style objective a `LGBMRegressor`/`XGBRegressor` uses by default.
 - **A controlled activation comparison** — ReLU, GELU, and Swish (`nn.SiLU`), architecture/optimizer/seed held fixed so the only thing that changes between runs is the non-linearity (`compare_activations`).
 
-Walk-forward validation, 5 folds, target `marginal_cost_usd_mwh` (`python -m src.models.generate_torch_report`, real run, seed 42, CPU):
+Walk-forward validation, 5 folds, target `marginal_cost_usd_mwh` (`python -m src.models.generate_torch_report`, real run, seed 42, CPU; the tree rows here use fixed default parameters, not the Optuna-tuned ones of §5.1):
 
 | Model | WAPE | MAE | Inference latency (ms / 1k rows) |
 |---|---|---|---|
-| Naive (1h persistence) | 10.26% | $9.09/MWh | -- |
-| Seasonal naive (24h) | 12.08% | $10.70/MWh | -- |
-| LightGBM (Optuna-tuned params) | 6.26% | $5.54/MWh | -- |
-| XGBoost | 7.06% | $6.27/MWh | -- |
-| MLP PyTorch — ReLU | 5.56% | $4.93/MWh | 0.47 |
-| MLP PyTorch — GELU | 5.55% | $4.92/MWh | 0.46 |
-| **MLP PyTorch — Swish** | **5.47%** | **$4.84/MWh** | 0.50 |
+| Naive (1h persistence) | 11.09% | $7.23/MWh | -- |
+| Seasonal naive (24h) | 11.71% | $7.66/MWh | -- |
+| LightGBM (default params) | 10.07% | $6.61/MWh | -- |
+| XGBoost | 10.83% | $7.11/MWh | -- |
+| MLP PyTorch — ReLU | **7.83%** | **$5.07/MWh** | 0.50 |
+| MLP PyTorch — GELU | 8.73% | $5.63/MWh | 0.50 |
+| MLP PyTorch — Swish (chosen on validation) | 8.39% | $5.41/MWh | 0.51 |
 
-**On this target, the PyTorch MLP beats both tree ensembles under all three activations**, and Swish narrowly edges out GELU and ReLU — consistent with Swish/GELU's typical edge over ReLU on this kind of smooth tabular regression, though the three stay close enough (5.47%–5.56%) that architecture and loss (Huber vs. tree-default MSE) plausibly matter more here than the specific activation choice. Metrics/predictions are persisted to `data/processed/metrics.duckdb` (table `model_comparison`, one row per model/variant) alongside the per-fold JSON detail in `torch_forecaster_metrics.json`; explanatory plots (predicted-vs-actual, residual histogram, loss/epoch, activation comparison bar chart) are written to `data/processed/torch_*.png`.
+**The PyTorch MLP beats both tree ensembles under all three activations**, and also beats the Optuna-tuned LightGBM of §5.1 (8.77%). Swish is the activation chosen on validation loss; ReLU happens to score best on test. The gap between them (0.56 points) is a reminder that the activation choice is noisy at this scale. Metrics/predictions are persisted to `data/processed/metrics.duckdb` (table `model_comparison`) alongside the per-fold JSON detail in `torch_forecaster_metrics.json`; explanatory plots are written to `data/processed/torch_*.png`.
 
-**Training protocol.** Inside each walk-forward fold, the last 15% of the training hours (all nodes at once) is held out as validation; the fold's test hours are not touched until evaluation. Each network trains for at least 100 epochs (at most 300), then early stopping ends the run after 20 epochs without improvement in validation loss and restores the best epoch's weights; the learning rate halves on plateaus. The full state is checkpointed every epoch (`data/checkpoints/`), so an interrupted run resumes where it stopped and the GIF script reuses the report's checkpoints instead of retraining. The activation is chosen on validation loss, not on test WAPE.
+**Training protocol.** Inside each walk-forward fold, the last 15% of the training hours (all nodes at once) is held out as validation; the fold's test hours are not touched until evaluation. Each network trains for at least 100 epochs (at most 300), then early stopping ends the run after 20 epochs without improvement in validation loss and restores the best epoch's weights; the learning rate halves on plateaus. The full state is checkpointed every epoch (`data/checkpoints/`), so an interrupted run resumes where it stopped and the GIF script reuses the report's checkpoints instead of retraining. The activation is chosen on validation loss, not on test WAPE. Validation loss bottoms out before epoch 100 in 14 of the 15 runs, so almost every run stops right after the minimum and returns an earlier epoch's weights.
 
-**What longer training showed.** Validation loss bottoms out between epoch 17 and 83 in all 15 runs (3 activations × 5 folds), so every run stops right after the 100-epoch minimum and returns the weights of an earlier epoch. Past that point the network only fits the training hours better. Compared with the previous fixed 40-epoch run, Swish's WAPE moves from 5.42% to 5.47%, essentially unchanged and now with 15% fewer hours to fit on. The MLP still beats LightGBM (6.26%) and XGBoost (7.06%).
-
-The GIF below replays the real per-epoch Huber loss for the Swish run (same `final_history` used for the static PNG), with a floating label tracking the current train/val value as the line advances.
+The GIF below replays the real per-epoch Huber loss for the Swish run, with a floating label tracking the current train/val value as the line advances.
 
 ![MLP PyTorch loss curve, animated](data/processed/torch_loss_curve_marginal_cost_usd_mwh_animated.gif)
 ![MLP PyTorch loss curve](data/processed/torch_loss_curve_marginal_cost_usd_mwh.png)
 
 ### 5.5 Prediction intervals: Conformalized Quantile Regression (`src/models/conformal.py`)
 
-§5.1–§5.4 are all point forecasts — a single number, no sense of how wrong it could plausibly be. That's a real gap against §1's own framing ("anticipate cost exposure and price-spike risk"): a risk band is what you size exposure against, not a WAPE percentage. This adds one: a pair of LightGBM quantile regressors (5th/95th percentile, targeting a 90% nominal interval) per target, conformalized with Conformalized Quantile Regression (Romano, Patterson & Candès, 2019) — a calibration split carved from the most recent 15% of each walk-forward fold's training set (`_split_train_calibration`), reflecting how miscalibrated the model is *now*, not months ago. Hyperparameters are the ones Optuna already tuned for the point model (`forecaster_metrics.json`), held fixed — the only thing that changes is the loss function, the same single-variable-at-a-time principle §5.2's ablation uses.
+§5.1–§5.4 are all point forecasts. A risk band is what you size exposure against, so this adds one: a pair of LightGBM quantile regressors (5th/95th percentile, targeting a 90% nominal interval) per target, conformalized with Conformalized Quantile Regression (Romano, Patterson & Candès, 2019) — a calibration split carved from the most recent 15% of each walk-forward fold's training set (`_split_train_calibration`). Hyperparameters are the ones Optuna already tuned for the point model, held fixed; only the loss function changes.
 
-Every fold reports coverage **both before and after** the conformal correction — the controlled comparison that shows conformalizing is doing real work, not just assumed to from the theory:
+Every fold reports coverage **both before and after** the conformal correction:
 
 | Target | Raw quantile coverage | Conformal coverage | Nominal | Raw width | Conformal width |
 |---|---|---|---|---|---|
-| Solar generation | 80.8% | 88.1% | 90% | 6.33 MWh | 6.70 MWh |
-| Wind generation | 90.5% | 91.1% | 90% | 10.17 MWh | 10.25 MWh |
-| Demand | 84.5% | 89.4% | 90% | 16.50 MWh | 18.42 MWh |
-| Marginal cost | 83.9% | **89.9%** | 90% | 17.72 $/MWh | 20.53 $/MWh |
+| Solar generation | 87.1% | 88.8% | 90% | 9.01 MWh | 9.26 MWh |
+| Wind generation | 85.0% | 88.3% | 90% | 8.31 MWh | 8.37 MWh |
+| Demand | 83.3% | 89.9% | 90% | 16.25 MWh | 18.80 MWh |
+| Marginal cost | 76.2% | **88.1%** | 90% | 19.36 $/MWh | 29.69 $/MWh |
 
-**The raw quantile regressors undercover by 6–10 points on three of the four targets, and conformalizing closes nearly all of that gap.** On marginal cost — the target that actually motivates this feature — coverage goes from 83.9% to 89.9%, within a point of nominal. Wind is the one target where conformalizing barely moves anything (90.5% → 91.1%), because its raw quantiles were already close to nominal — consistent with §5.1's own finding that wind behaves close to a pure random walk: a distribution without the strong deterministic structure the other three targets have for a fixed-quantile model to get wrong in the first place.
+**The raw quantile regressors undercover on every target, worst on price (76.2%), and conformalizing closes most of the gap.** Price coverage rises from 76.2% to 88.1%, at the cost of a wider band (19.4 → 29.7 $/MWh): real monthly price swings make the price distribution harder to bound than the old simulator's, and the calibration margin has to absorb that.
 
-**Solar's conformal coverage (88.1%) is the one that falls short of the 90% nominal, and not uniformly.** Splitting the deployed model's test set by day vs. night (`solar_generation_mwh == 0` is 40.1% of the rows) shows the actual mechanism, not a guess: night coverage is 98.2% at a mean interval width of 0.14 MWh (correctly near-degenerate, since solar really is exactly zero every night), while day coverage is only 83.8% at a mean width of 9.61 MWh. A single scalar margin, calibrated over both regimes combined, ends up too wide for the regime with almost no real variance and too narrow for the one that has it — a genuine limitation of this exact (global-margin) CQR formulation on a zero-inflated, heteroscedastic target, left as a real gap rather than smoothed over in the aggregate number. A day/night-grouped or locally-weighted conformal calibration would be the natural fix; not implemented here.
+**Solar's interval is still badly calibrated within the day.** On the deployed (last-fold) model, night hours (`solar_generation_mwh == 0`, 42% of rows) are covered 98.4% of the time with a mean width of 0.08 MWh, while daytime hours are covered only 68.0% of the time at a mean width of 14.4 MWh. A single scalar margin calibrated over both regimes is too wide for the one with no variance and too narrow for the one that has it — a limitation of this global-margin CQR formulation on a zero-inflated target, with real cloud cover making the daytime regime harder than before. A day/night-grouped or locally weighted calibration would be the natural fix; not implemented here.
 
-**A second real defect surfaced by actually running `forecast.py` end to end, not by unit tests alone**: the two quantile regressors are trained independently, so nothing stops them from *crossing* (`lower > upper`) on an individual row. It happened on 0.46% of the deployed solar model's test rows — all clustered at dawn/dusk, where both quantiles predict values within a fraction of an MWh of each other near the 0 MWh physical floor and their relative order becomes estimation noise rather than signal. `rectify_crossing` (`src/models/conformal.py`) enforces the standard fix — element-wise min/max, per Chernozhukov, Fernández-Val & Galichon (2010) — applied everywhere an interval is built or scored; `tests/test_forecast.py::test_forecast_intervals_are_never_crossed` pins the regression directly against `forecast_node`'s real recursive output, not just the rectification function in isolation.
+**Quantile crossing.** The two quantile regressors are trained independently, so nothing stops them from crossing (`lower > upper`) on an individual row; it happens on 0.79% of the deployed solar model's test rows, clustered at dawn and dusk near the 0 MWh floor. `rectify_crossing` (`src/models/conformal.py`) enforces the standard fix — element-wise min/max, per Chernozhukov, Fernández-Val & Galichon (2010) — applied everywhere an interval is built or scored; `tests/test_forecast.py::test_forecast_intervals_are_never_crossed` pins the regression against `forecast_node`'s real recursive output.
 
-`forecast.py`'s recursive forecaster and the dashboard's future-forecast panel both pick up these intervals automatically when `conformal.py` has been run (`load_interval_models`); if it hasn't, both degrade to point-only output instead of failing. The interval at each recursive step is computed fresh from that step's feature vector but never fed back into the history buffer — only the point prediction advances the recursion, same as before this feature existed — so the interval doesn't itself compound growing uncertainty across the horizon. A properly horizon-aware interval is a known simplification left for future work, not hidden.
+`forecast.py`'s recursive forecaster and the dashboard's future-forecast panel both pick up these intervals automatically when `conformal.py` has been run (`load_interval_models`); if it hasn't, both degrade to point-only output. The interval at each recursive step is computed from that step's feature vector but never fed back into the history buffer, so it does not compound uncertainty across the horizon — a known simplification.
 
 Run `python -m src.models.conformal` after `train_forecaster.py` (it reuses the tuned hyperparameters from `forecaster_metrics.json`).
 
@@ -194,11 +200,9 @@ Run `python -m src.models.conformal` after `train_forecaster.py` (it reuses the 
 python -m src.models.forecast --horizon 12 --nodes Crucero_220kV
 ```
 
-Real output (mining-profile node, forecast starting at local midnight): solar output ramps from 0 to 154.7 MWh between 00:00 and 11:00 as the sun rises, and marginal cost falls from $112.39/MWh to $71.04/MWh over the same window as rising solar displaces expensive generation — the merit-order dynamic from the data generator, recovered purely from the model's own recursive predictions, not hardcoded.
+Real output (mining-profile node, forecast starting at local midnight on 2026-01-01): solar output stays at zero until dawn and ramps to 144.8 MWh by 11:00, and marginal cost falls from $61.8/MWh at midnight to $37.2/MWh at 11:00 as rising solar displaces expensive generation — the merit-order dynamic, recovered from the model's own recursive predictions. Wind decays from 16.3 to about 5 MWh over the night, following its recent lags.
 
-**A real limitation the recursive forecaster's own output exposes**: wind generation stays essentially flat (~6.9 MWh) across the whole 12-hour horizon above. That's not a model failure — it's `forecast.py` persisting the last *known* weather values forward into future hours (see `forecast_node`, `last_known_weather`), because this project simulates historical weather observations, not an NWP forecast for future hours. Solar still evolves correctly because its dominant driver (the cyclical hour-of-day/month encoding) is recomputed exactly for each future timestamp regardless of weather persistence, but wind — which depends almost entirely on the persisted weather value — visibly loses its own random-walk dynamics beyond the first step. Documented here rather than hidden: a production deployment would need real NWP wind forecasts for the recursive horizon, not persistence.
-
-When `conformal.py` (§5.5) has been run, the same CLI adds `<target>_lower`/`<target>_upper` columns, computed at every recursive step, no extra flag needed. Real output for `marginal_cost_usd_mwh` over the same run: [$79.98, $100.21] at midnight (point $92.69), and [$0.00, $22.98] by 10:00 as solar ramps up and the point forecast falls to $6.33 — the lower bound hits the $0 physical floor (clipped, same `TARGET_CLIP_RANGES` the point forecast already respects) while the raw interval width stays roughly the conformal margin's size either way, since §5.5's correction is one fixed additive margin per target, not one that adapts to how volatile a given hour looks.
+**A limitation the recursive forecaster's own output exposes**: `forecast.py` persists the last *known* weather values into future hours (see `forecast_node`, `last_known_weather`), because the project uses historical weather observations, not an NWP forecast for future hours. Solar still evolves correctly because its dominant driver (the cyclical hour-of-day/month encoding) is recomputed for each future timestamp, but wind only follows its own lags. A production deployment would need real NWP forecasts for the recursive horizon.
 
 ## 7. Tech stack
 
@@ -211,7 +215,8 @@ python -m venv venv
 venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 
-python -m src.data.fetch_energy_data      # generate synthetic SEN data (targets + weather)
+python -m src.data.fetch_energy_data      # build the SEN panel from the real series in data/real/ (targets + weather)
+# python -m src.data.real_sources         # optional: re-download the real series (Open-Meteo, datos.gob.cl)
 python -m src.features.build_features     # build lag/rolling/cyclical/weather features
 python -m src.models.train_forecaster      # Optuna tuning + walk-forward train/validate, all 4 targets
 # optional: --trials N (default 20) --splits N (default 5)
@@ -238,7 +243,8 @@ jupyter nbconvert --to notebook --execute --inplace notebooks/02_Weather_Augment
 
 ```
 src/
-  data/       fetch_energy_data.py    synthetic SEN hourly data generator + weather (GHI/wind/temp)
+  data/       fetch_energy_data.py    SEN hourly panel anchored to real data (simulator kept as use_real=False)
+              real_sources.py         real weather (Open-Meteo), monthly SEN generation, Crucero marginal cost
   features/   build_features.py       Polars lag/rolling/cyclical/calendar/weather-lag features
   models/     validation.py           walk-forward folds + Rolling-Origin folds + WAPE metric
               baselines.py            naive / seasonal-naive reference metrics
