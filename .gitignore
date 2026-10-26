@@ -17,3 +17,7 @@ data/checkpoints/
 
 # Series reales pequeñas que anclan el panel (clima Open-Meteo, generación mensual SEN, CMg Crucero): se versionan
 !data/real/*.csv
+
+# PDF de los informes diarios del Coordinador (~1 GB): src/data/cen_daily_reports.py los
+# descarga si faltan; las series horarias extraídas en data/real/ sí se versionan.
+data/real/cen_reports/

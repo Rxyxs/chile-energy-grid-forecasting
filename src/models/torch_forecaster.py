@@ -30,6 +30,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from src.data.real_panel import rows_for_target
 from src.models.train_forecaster import CATEGORICAL_FEATURES, TARGET_COLUMNS, get_feature_columns, load_features
 from src.models.validation import get_walk_forward_folds, wape
 
@@ -266,7 +267,7 @@ def train_with_walk_forward_validation(
     stopping; las horas de test del fold no se usan hasta la evaluación.
     """
     feature_columns = get_feature_columns(df)
-    clean_df = df.dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
+    clean_df = rows_for_target(df, target_column).dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
     encoded = _encode_features(clean_df, feature_columns)
 
     fold_metrics = []

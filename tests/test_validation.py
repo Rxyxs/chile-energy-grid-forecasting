@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.models.validation import get_walk_forward_folds, wape
+from src.models.validation import get_walk_forward_folds, mean_by_node, wape, wape_by_node
 
 
 def test_wape_perfect_prediction_is_zero():
@@ -40,3 +40,10 @@ def test_folds_grow_across_splits():
     folds = get_walk_forward_folds(df, n_splits=4)
     train_sizes = [len(train_ts) for train_ts, _ in folds]
     assert train_sizes == sorted(train_sizes)
+
+
+def test_wape_by_node_splits_the_error_per_bus():
+    per_node = wape_by_node(["a", "a", "b", "b"], [10, 10, 100, 100], [11, 9, 100, 50])
+    assert per_node == {"a": 10.0, "b": 25.0}
+    folds = [{"wape_by_node": {"a": 10.0, "b": 20.0}}, {"wape_by_node": {"a": 30.0, "b": 40.0}}]
+    assert mean_by_node(folds) == {"a": 20.0, "b": 30.0}

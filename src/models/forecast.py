@@ -32,6 +32,7 @@ from src.features.build_features import (
     add_rolling_features,
     add_weather_lag_features,
 )
+from src.data.real_panel import PRICE_TARGET, SYSTEM_NODE, SYSTEM_TARGETS
 from src.models.train_forecaster import CATEGORICAL_FEATURES, TARGET_COLUMNS, get_feature_columns
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -44,15 +45,14 @@ FORECAST_OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "forecast.csv"
 # unas pocas decenas de horas hacia adelante.
 HISTORY_BUFFER_HOURS = 250
 
-# El generador sintético acota estos rangos (ver fetch_energy_data.py); un
-# pronóstico recursivo puede derivar fuera de rango tras muchos pasos, así que
-# se recorta a lo físicamente plausible antes de usarlo como "historia" del
-# siguiente paso.
+# Un pronóstico recursivo puede derivar fuera de rango tras muchos pasos, así
+# que se recorta a lo físicamente posible (generación y costo marginal no
+# negativos) antes de usarlo como "historia" del siguiente paso.
 TARGET_CLIP_RANGES = {
     "solar_generation_mwh": (0.0, None),
     "wind_generation_mwh": (0.0, None),
     "demand_mwh": (0.0, None),
-    "marginal_cost_usd_mwh": (0.0, 350.0),
+    "marginal_cost_usd_mwh": (0.0, None),
 }
 
 
@@ -91,6 +91,7 @@ def forecast_node(
     horizon: int,
     models: dict[str, object],
     interval_models: dict[str, dict] | None = None,
+    system_path: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Pronostica `horizon` horas hacia adelante para un solo nodo, de forma
     recursiva. Si se pasa `interval_models` (ver `load_interval_models`),
@@ -98,7 +99,12 @@ def forecast_node(
     tenga modelo de intervalo -- calculadas sobre el mismo vector de features
     que el pronóstico puntual, en cada paso, pero sin retroalimentarse: lo
     único que avanza el buffer histórico de un paso al siguiente es la
-    predicción puntual, igual que antes de agregar intervalos."""
+    predicción puntual, igual que antes de agregar intervalos.
+
+    ``system_path`` (pronóstico ya hecho del nodo SEN) aporta, en cada paso, la
+    solar, eólica y demanda del sistema a la fila futura de una barra: el precio
+    de la barra depende de esas series del sistema, que se pronostican una sola
+    vez en el nodo SEN en vez de adivinarse desde el clima de cada barra."""
     buffer = node_history.tail(HISTORY_BUFFER_HOURS).reset_index(drop=True)
     feature_columns = None
     forecast_rows = []
@@ -114,9 +120,13 @@ def forecast_node(
         # no una que se intenta disimular -- de lo que en producción sería un
         # pronóstico NWP real para las horas futuras.
         last_known_weather = {col: buffer[col].iloc[-1] for col in WEATHER_COLUMNS}
+        known = {}
+        if system_path is not None:
+            step = system_path[system_path["timestamp"] == next_timestamp]
+            known = {t: float(step[t].iloc[0]) for t in SYSTEM_TARGETS if len(step) and t in step}
         new_row = pd.DataFrame([{
             "timestamp": next_timestamp, "node": node,
-            **{t: np.nan for t in TARGET_COLUMNS},
+            **{t: known.get(t, np.nan) for t in TARGET_COLUMNS},
             **last_known_weather,
         }])
         extended = pd.concat([buffer, new_row], ignore_index=True)
@@ -153,7 +163,7 @@ def forecast_node(
 
         new_row.loc[0, list(predictions.keys())] = list(predictions.values())
         buffer = pd.concat([buffer, new_row], ignore_index=True).tail(HISTORY_BUFFER_HOURS).reset_index(drop=True)
-        forecast_rows.append({"timestamp": next_timestamp, "node": node, **predictions, **intervals})
+        forecast_rows.append({"timestamp": next_timestamp, "node": node, **known, **predictions, **intervals})
 
     return pd.DataFrame(forecast_rows)
 
@@ -169,10 +179,24 @@ def forecast(nodes: list[str], horizon: int, with_intervals: bool = True) -> pd.
         except FileNotFoundError:
             interval_models = None  # opcional: corre `python -m src.models.conformal` para habilitarlos
 
-    frames = []
-    for node in nodes:
-        node_history = raw[raw["node"] == node].sort_values("timestamp").reset_index(drop=True)
-        frames.append(forecast_node(node_history, node, horizon, models, interval_models))
+    def history(node: str) -> pd.DataFrame:
+        return raw[raw["node"] == node].sort_values("timestamp").reset_index(drop=True)
+
+    def subset(targets: list[str], source: dict | None) -> dict | None:
+        return None if source is None else {t: v for t, v in source.items() if t in targets}
+
+    if SYSTEM_NODE not in set(raw["node"]):  # panel simulado: cada barra con sus 4 targets
+        return pd.concat([forecast_node(history(n), n, horizon, models, interval_models) for n in nodes],
+                         ignore_index=True)
+
+    # Panel real: primero el sistema (solar, eólica, demanda en el nodo SEN) y
+    # después el precio de cada barra, con esa trayectoria del sistema.
+    system_path = forecast_node(history(SYSTEM_NODE), SYSTEM_NODE, horizon,
+                                subset(SYSTEM_TARGETS, models), subset(SYSTEM_TARGETS, interval_models))
+    frames = [system_path] if SYSTEM_NODE in nodes else []
+    for node in (n for n in nodes if n != SYSTEM_NODE):
+        frames.append(forecast_node(history(node), node, horizon, subset([PRICE_TARGET], models),
+                                    subset([PRICE_TARGET], interval_models), system_path=system_path))
     return pd.concat(frames, ignore_index=True)
 
 

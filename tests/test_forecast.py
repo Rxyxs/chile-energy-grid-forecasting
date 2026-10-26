@@ -77,7 +77,7 @@ def test_forecast_respects_physical_bounds(tiny_models, node_history):
     assert (result["solar_generation_mwh"] >= 0).all()
     assert (result["wind_generation_mwh"] >= 0).all()
     assert (result["demand_mwh"] >= 0).all()
-    assert result["marginal_cost_usd_mwh"].between(0, 350).all()
+    assert (result["marginal_cost_usd_mwh"] >= 0).all()
 
 
 def test_forecast_without_interval_models_has_no_interval_columns(tiny_models, node_history):
@@ -93,3 +93,20 @@ def test_forecast_intervals_are_never_crossed(tiny_models, tiny_interval_models,
     result = forecast_node(node_history, TEST_NODE, 8, tiny_models, tiny_interval_models)
     for target in TARGET_COLUMNS:
         assert (result[f"{target}_lower"] <= result[f"{target}_upper"]).all()
+
+
+def test_bar_forecast_uses_the_system_path_forecast_at_the_sen_node(tiny_models):
+    """En el panel real la solar, eólica y demanda son del sistema: se
+    pronostican una vez en el nodo SEN y cada barra usa esa trayectoria para su
+    precio, en vez de predecirlas desde su propio clima."""
+    from src.data.real_panel import PRICE_TARGET, SYSTEM_NODE, SYSTEM_TARGETS
+
+    raw = generate_energy_data()
+    sen_history = raw[raw["node"] == SYSTEM_NODE].sort_values("timestamp").reset_index(drop=True)
+    bar_history = raw[raw["node"] == TEST_NODE].sort_values("timestamp").reset_index(drop=True)
+    system_path = forecast_node(sen_history, SYSTEM_NODE, 4, {t: tiny_models[t] for t in SYSTEM_TARGETS})
+    bar = forecast_node(bar_history, TEST_NODE, 4, {PRICE_TARGET: tiny_models[PRICE_TARGET]},
+                        system_path=system_path)
+
+    pd.testing.assert_frame_equal(bar[SYSTEM_TARGETS], system_path[SYSTEM_TARGETS])
+    assert bar[PRICE_TARGET].notna().all() and (bar[PRICE_TARGET] >= 0).all()

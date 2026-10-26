@@ -20,6 +20,20 @@ def wape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(np.abs(y_true - y_pred).sum() / denom * 100)
 
 
+def wape_by_node(nodes, y_true, y_pred) -> dict[str, float]:
+    """WAPE por nodo (barra), para ver qué barras concentran el error de un panel."""
+    frame = pd.DataFrame({"node": np.asarray(nodes), "y": np.asarray(y_true, float), "p": np.asarray(y_pred, float)})
+    return {str(n): wape(g["y"], g["p"]) for n, g in frame.groupby("node")}
+
+
+def mean_by_node(fold_metrics: list[dict]) -> dict[str, float]:
+    """Promedio, entre folds, del WAPE por nodo de cada fold."""
+    per_fold = [m["wape_by_node"] for m in fold_metrics if "wape_by_node" in m]
+    if not per_fold:
+        return {}
+    return {n: float(np.mean([f[n] for f in per_fold if n in f])) for n in per_fold[0]}
+
+
 def get_walk_forward_folds(df: pd.DataFrame, n_splits: int) -> list[tuple[set, set]]:
     """Folds walk-forward **expansivos** sobre **timestamps únicos**, no sobre
     filas crudas del panel: con 5 nodos por hora, un split por fila podría

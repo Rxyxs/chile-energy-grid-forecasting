@@ -1,22 +1,16 @@
-"""Fuentes reales que anclan el panel horario del SEN.
-
-El Coordinador Eléctrico Nacional publica el costo marginal horario por barra,
-pero su API exige una cuenta institucional y su sitio bloquea descargas
-automatizadas. Este módulo reemplaza todo lo que sí se puede obtener de fuentes
-públicas reales:
+"""Fuentes reales públicas que no salen de los informes diarios del Coordinador.
 
 - **Clima horario real** (Open-Meteo, reanálisis ERA5) en las coordenadas de
-  las 5 barras: irradiancia global horizontal, viento a 100 m y temperatura.
-  Reemplaza al clima simulado; la generación solar y eólica se derivan de él.
-- **Generación mensual real del SEN** por tecnología (datos.gob.cl, CNE): la
-  forma mensual de la generación solar, eólica y total calibra la solar, la
-  eólica y la demanda del panel.
-- **Costo marginal mensual real de la barra Crucero 220 kV** (reportes
-  mensuales de la CNE, extraídos en el gemelo SAG de este portafolio): fija el
-  nivel mensual del precio.
+  las 6 barras: irradiancia global horizontal, viento a 100 m y temperatura.
+  Son las variables de clima del panel.
+- **Generación mensual real del SEN** por tecnología (datos.gob.cl, CNE) y
+  **costo marginal mensual de Crucero 220 kV** (reportes mensuales de la CNE,
+  extraídos en el gemelo SAG de este portafolio). No construyen nada: sirven
+  para validar las series horarias reconstruidas de los informes diarios
+  (``report_figures``, ``tests/test_real_sources.py``).
 
-Las tres series se guardan en ``data/real/`` y se versionan, así que el
-pipeline y los tests corren sin red; ``refresh_all()`` las vuelve a descargar.
+Las tres se guardan en ``data/real/`` y se versionan, así que el pipeline y
+los tests corren sin red; ``refresh_all()`` vuelve a descargar las dos primeras.
 """
 from __future__ import annotations
 
@@ -26,7 +20,6 @@ import time
 import urllib.request
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -41,11 +34,12 @@ GENERATION_URL = ("https://datos.gob.cl/dataset/0e54541d-e5b4-47a5-9cc8-0bd5062d
 
 # Coordenadas aproximadas de cada subestación (lat, lon).
 NODE_COORDS: dict[str, tuple[float, float]] = {
-    "Crucero_220kV": (-22.27, -69.57),      # María Elena, Antofagasta
-    "Cardones_220kV": (-27.39, -70.33),     # Copiapó, Atacama
-    "Quillota_220kV": (-32.88, -71.25),     # Quillota, Valparaíso
-    "Alto_Jahuel_220kV": (-33.73, -70.68),  # Buin, Metropolitana
-    "Charrua_220kV": (-37.13, -72.33),      # Cabrero, Biobío
+    "Crucero_220kV": (-22.27, -69.57),        # María Elena, Antofagasta
+    "Cardones_220kV": (-27.39, -70.33),       # Copiapó, Atacama
+    "Pan_de_Azucar_220kV": (-30.05, -71.24),  # Coquimbo
+    "Quillota_220kV": (-32.88, -71.25),       # Quillota, Valparaíso
+    "Charrua_220kV": (-37.13, -72.33),        # Cabrero, Biobío
+    "Puerto_Montt_220kV": (-41.45, -72.95),   # Puerto Montt, Los Lagos
 }
 
 SOLAR_TECH = ("Solar",)
@@ -105,7 +99,7 @@ def fetch_generation() -> pd.DataFrame:
     return out.reset_index().rename(columns={"index": "month"})
 
 
-def refresh_all(start: str = "2024-01-01", end: str = "2025-12-31") -> None:
+def refresh_all(start: str = "2022-01-01", end: str = "2025-12-31") -> None:
     REAL_DIR.mkdir(parents=True, exist_ok=True)
     fetch_weather(start, end).round(2).to_csv(WEATHER_PATH, index=False, compression="gzip")
     fetch_generation().round(1).to_csv(GENERATION_PATH, index=False)
@@ -121,18 +115,6 @@ def load_generation() -> pd.DataFrame:
 
 def load_cmg() -> pd.DataFrame:
     return pd.read_csv(CMG_PATH, dtype={"month": str})
-
-
-def monthly_shape(values: pd.Series) -> pd.Series:
-    """Serie mensual normalizada a media 1 (forma estacional, sin nivel)."""
-    return values / values.mean()
-
-
-def calibration_factors(sim_monthly: pd.Series, real_monthly: pd.Series) -> pd.Series:
-    """Factor por mes que lleva la forma mensual simulada a la forma mensual real,
-    conservando el nivel promedio simulado: f_m = forma_real_m / forma_sim_m."""
-    common = sim_monthly.index.intersection(real_monthly.index)
-    return monthly_shape(real_monthly.loc[common]) / monthly_shape(sim_monthly.loc[common])
 
 
 if __name__ == "__main__":

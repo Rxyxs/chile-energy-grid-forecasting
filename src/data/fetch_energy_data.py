@@ -1,19 +1,15 @@
-"""Generador sintético de datos horarios del Sistema Eléctrico Nacional (SEN) de Chile.
+"""Panel horario del Sistema Eléctrico Nacional (SEN) de Chile.
 
-El CEN (Coordinador Eléctrico Nacional) no expone una API pública simple y
-gratuita para descargar históricos horarios por barra, así que este módulo
-simula 2 años de datos (2024-2025) para 5 nodos/barras reales del SEN, con
-generación solar y eólica, demanda, costo marginal (precio spot), y las
-variables meteorológicas físicas que efectivamente *causan* la generación
-renovable (irradiancia solar, velocidad de viento, temperatura) -- no como
-una serie paralela desconectada, sino como el insumo del que la generación se
-deriva matemáticamente (ver `_ghi_wm2`, `_wind_power_fraction`).
+``generate_energy_data()`` devuelve, por defecto, el panel REAL de
+``src/data/real_panel.py``: costo marginal horario de 6 barras de 220 kV y
+solar, eólica y demanda horarias del sistema, reconstruidos de los informes
+diarios públicos del Coordinador (2022-2025), con clima horario real por barra.
 
-No es ruido: el costo marginal se deriva de la demanda residual (demanda menos
-renovables) siguiendo la lógica real de orden de mérito del mercado eléctrico
--- más sol/viento desplaza generación cara y baja el precio; más demanda con
-poca renovable lo sube -- para que haya señal real que un modelo de forecasting
-pueda aprender, no solo aleatoriedad.
+El resto de este módulo es el simulador original (``use_real=False``): 5
+barras, 2024-2025, con la generación renovable derivada de un clima simulado
+(irradiancia, viento, temperatura) y el costo marginal derivado de la demanda
+residual por orden de mérito. Se conserva para los tests que necesitan un
+proceso generador conocido.
 """
 from __future__ import annotations
 
@@ -23,7 +19,7 @@ import holidays
 import numpy as np
 import pandas as pd
 
-from src.data import real_sources
+from src.data.real_panel import NODES  # noqa: F401  (nodos del panel real)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_PATH = PROJECT_ROOT / "data" / "raw" / "sen_hourly_data.csv"
@@ -35,7 +31,7 @@ RANDOM_SEED = 42
 # Nodos/barras reales del SEN, con perfiles representativos de su geografía:
 # norte (desierto de Atacama) = alto potencial solar y minería 24/7; centro =
 # demanda urbana con doble pico; sur (Biobío) = más viento, más industria.
-NODES: dict[str, dict] = {
+SIM_NODES: dict[str, dict] = {
     "Crucero_220kV":     {"solar_capacity_mwh": 220, "wind_capacity_mwh": 40,  "base_demand_mwh": 180, "profile": "mining"},
     "Cardones_220kV":    {"solar_capacity_mwh": 200, "wind_capacity_mwh": 60,  "base_demand_mwh": 90,  "profile": "mixed"},
     "Quillota_220kV":    {"solar_capacity_mwh": 110, "wind_capacity_mwh": 70,  "base_demand_mwh": 140, "profile": "urban"},
@@ -308,54 +304,24 @@ def _price(df: pd.DataFrame, params: dict) -> np.ndarray:
     return np.clip(price.to_numpy(), 0, 350)
 
 
-def _calibrate_to_real(panel: pd.DataFrame) -> pd.DataFrame:
-    """Ancla el panel a las series mensuales reales.
-
-    - Solar, eólica y demanda: se multiplican por un factor mensual que lleva la
-      forma mensual del agregado de las 5 barras a la forma mensual real de la
-      generación solar, eólica y total del SEN (datos.gob.cl). Se conserva el
-      nivel de cada barra; cambia la estacionalidad, que pasa a ser la real.
-    - Precio: se recalcula con la demanda residual ya calibrada y luego se
-      escala mes a mes para que el promedio mensual de Crucero 220 kV iguale el
-      costo marginal real publicado por la CNE; el mismo factor se aplica a
-      todas las barras, que conservan sus diferencias relativas.
-    """
-    gen = real_sources.load_generation().set_index("month")
-    month = panel["timestamp"].dt.strftime("%Y-%m")
-    for col, real_col in (("solar_generation_mwh", "solar_mwh"), ("wind_generation_mwh", "wind_mwh"),
-                          ("demand_mwh", "total_mwh")):
-        sim_monthly = panel.groupby(month)[col].sum()
-        factors = real_sources.calibration_factors(sim_monthly, gen[real_col])
-        panel[col] = panel[col] * month.map(factors).fillna(1.0).to_numpy()
-    for node, params in NODES.items():
-        mask = panel["node"] == node
-        panel.loc[mask, "marginal_cost_usd_mwh"] = _price(panel.loc[mask], params)
-    cmg = real_sources.load_cmg().set_index("month")["cmg_usd_mwh"]
-    crucero = panel[panel["node"] == "Crucero_220kV"]
-    sim_cmg = crucero.groupby(crucero["timestamp"].dt.strftime("%Y-%m"))["marginal_cost_usd_mwh"].mean()
-    price_factor = (cmg.reindex(sim_cmg.index) / sim_cmg).fillna(1.0)
-    panel["marginal_cost_usd_mwh"] = np.clip(panel["marginal_cost_usd_mwh"] * month.map(price_factor).to_numpy(), 0, None)
-    return panel
-
-
 def generate_energy_data(seed: int = RANDOM_SEED, use_real: bool = True) -> pd.DataFrame:
-    """Genera el panel horario completo (todos los nodos) para 2024-2025.
+    """Panel horario del SEN.
 
-    Con ``use_real=True`` (por defecto) el clima es el real de cada barra y el
-    panel se calibra con la generación mensual real del SEN y el costo marginal
-    mensual real de Crucero (ver ``real_sources``). Con ``use_real=False`` es el
-    simulador original, sin ninguna fuente externa."""
-    timestamps = pd.date_range(START_DATE, END_DATE, freq="h")
-    weather = real_sources.load_weather() if use_real else None
-    frames = [
-        _generate_node_series(node, params, timestamps, np.random.default_rng(seed + i),
-                              weather=None if weather is None else weather[weather["node"] == node])
-        for i, (node, params) in enumerate(NODES.items())
-    ]
-    panel = pd.concat(frames, ignore_index=True)
+    Con ``use_real=True`` (por defecto) es el panel REAL de ``real_panel``: costo
+    marginal horario de 6 barras y generación horaria del sistema reconstruidos
+    de los informes diarios del Coordinador, 2022-2025. Con ``use_real=False`` es
+    el simulador original (5 barras, 2024-2025, sin ninguna fuente externa), que
+    se conserva para los tests que necesitan un proceso generador conocido."""
     if use_real:
-        panel = _calibrate_to_real(panel)
-    panel = panel.drop(columns=["_spike", "_noise"])
+        from src.data.real_panel import build_real_panel
+
+        return build_real_panel()
+    timestamps = pd.date_range(START_DATE, END_DATE, freq="h")
+    frames = [
+        _generate_node_series(node, params, timestamps, np.random.default_rng(seed + i))
+        for i, (node, params) in enumerate(SIM_NODES.items())
+    ]
+    panel = pd.concat(frames, ignore_index=True).drop(columns=["_spike", "_noise"])
     rounding = {"solar_generation_mwh": 2, "wind_generation_mwh": 2, "demand_mwh": 2, "marginal_cost_usd_mwh": 2,
                 "ghi_w_m2": 1, "wind_speed_ms": 2, "temperature_c": 2}
     return panel.round(rounding)[["timestamp", "node", "solar_generation_mwh", "wind_generation_mwh", "demand_mwh",
@@ -367,7 +333,7 @@ if __name__ == "__main__":
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(OUTPUT_PATH, index=False)
 
-    print(f"Filas generadas: {len(df):,} ({len(NODES)} nodos x {df['timestamp'].nunique():,} horas)")
+    print(f"Filas generadas: {len(df):,} ({df['node'].nunique()} nodos x {df['timestamp'].nunique():,} horas)")
     print(f"Rango: {df['timestamp'].min()} -> {df['timestamp'].max()}")
     print(f"Precio promedio: ${df['marginal_cost_usd_mwh'].mean():.2f}/MWh")
     print(f"Guardado en {OUTPUT_PATH}")

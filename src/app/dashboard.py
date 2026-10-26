@@ -18,6 +18,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from src.data.real_panel import PRICE_TARGET, SYSTEM_NODE, SYSTEM_TARGETS, rows_for_target
 from src.models.forecast import RAW_PATH, forecast_node, load_interval_models, load_models
 from src.models.train_forecaster import (
     CATEGORICAL_FEATURES,
@@ -75,7 +76,7 @@ def get_last_fold_predictions(_model, df: pd.DataFrame, n_splits: int) -> pd.Dat
     `train_forecaster.py`, vía `validation.get_walk_forward_folds`) y genera
     predicciones fuera de muestra."""
     feature_columns = get_feature_columns(df)
-    df = df.dropna(subset=feature_columns + [DEFAULT_TARGET]).reset_index(drop=True)
+    df = rows_for_target(df, DEFAULT_TARGET).dropna(subset=feature_columns + [DEFAULT_TARGET]).reset_index(drop=True)
 
     _, test_ts = get_walk_forward_folds(df, n_splits)[-1]
     test_df = df[df["timestamp"].isin(test_ts)].copy()
@@ -128,7 +129,7 @@ def render_price_chart(view_df: pd.DataFrame, threshold: float, node: str) -> No
 
 
 def render_generation_chart(view_df: pd.DataFrame, node: str) -> None:
-    st.subheader(f"Generación renovable vs. demanda — {node}")
+    st.subheader("Generación renovable vs. demanda del sistema (SEN completo)")
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=view_df["timestamp"], y=view_df["demand_mwh"], name="Demanda", line=dict(color="#4a3aa7", width=2)))
     fig.add_trace(go.Scatter(x=view_df["timestamp"], y=view_df["solar_generation_mwh"], name="Solar", line=dict(color="#eda100", width=1.5)))
@@ -150,13 +151,26 @@ def render_baseline_comparison(metrics: dict) -> None:
     st.dataframe(pd.DataFrame(rows).round(2), use_container_width=True, hide_index=True)
 
 
-def render_future_forecast(node: str, node_history: pd.DataFrame) -> None:
+def render_future_forecast(node: str, raw_history: pd.DataFrame) -> None:
     st.subheader(f"🔮 Pronóstico a futuro (recursivo, multi-step) — {node}")
     horizon = st.slider("Horizonte a pronosticar (horas)", 6, 72, 24, step=6, key="horizon")
 
     models = load_all_models()
     interval_models = load_all_interval_models()
-    future_df = forecast_node(node_history, node, horizon, models, interval_models)
+
+    def history(n: str) -> pd.DataFrame:
+        return raw_history[raw_history["node"] == n].sort_values("timestamp").reset_index(drop=True)
+
+    def subset(targets: list[str], source: dict | None) -> dict | None:
+        return None if source is None else {t: v for t, v in source.items() if t in targets}
+
+    # Primero el sistema (nodo SEN) y después el precio de la barra con esa
+    # trayectoria de solar, eólica y demanda (ver forecast.forecast).
+    system_path = forecast_node(history(SYSTEM_NODE), SYSTEM_NODE, horizon,
+                                subset(SYSTEM_TARGETS, models), subset(SYSTEM_TARGETS, interval_models))
+    node_history = history(node)
+    future_df = forecast_node(node_history, node, horizon, subset([PRICE_TARGET], models),
+                              subset([PRICE_TARGET], interval_models), system_path=system_path)
 
     history_tail = node_history.tail(72)
     fig = go.Figure()
@@ -230,8 +244,7 @@ def main() -> None:
     render_generation_chart(view_df, selected_node)
     render_baseline_comparison(metrics)
 
-    node_history = raw_history[raw_history["node"] == selected_node].sort_values("timestamp")
-    render_future_forecast(selected_node, node_history)
+    render_future_forecast(selected_node, raw_history)
 
 
 if __name__ == "__main__":

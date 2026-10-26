@@ -25,9 +25,10 @@ import pandas as pd
 from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_absolute_error
 
+from src.data.real_panel import rows_for_target
 from src.features.build_features import WEATHER_COLUMNS
 from src.models.baselines import naive_metrics, seasonal_naive_metrics
-from src.models.validation import get_walk_forward_folds, wape
+from src.models.validation import get_walk_forward_folds, mean_by_node, wape, wape_by_node
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -101,7 +102,7 @@ def train_with_walk_forward_validation(
     se evaluó, no uno sin evaluación propia.
     """
     feature_columns = get_feature_columns(df)
-    df = df.dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
+    df = rows_for_target(df, target_column).dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
     params = {**BASE_LGBM_PARAMS, **(lgbm_params or DEFAULT_LGBM_PARAMS)}
 
     fold_metrics = []
@@ -119,6 +120,7 @@ def train_with_walk_forward_validation(
             "test_rows": int(len(X_test)),
             "wape": wape(y_test.to_numpy(), y_pred),
             "mae": float(mean_absolute_error(y_test, y_pred)),
+            "wape_by_node": wape_by_node(X_test["node"], y_test, y_pred),
         })
         last_model = model
 
@@ -131,6 +133,7 @@ def train_with_walk_forward_validation(
         "fold_metrics": fold_metrics,
         "mean_wape": float(np.mean([m["wape"] for m in fold_metrics])),
         "mean_mae": float(np.mean([m["mae"] for m in fold_metrics])),
+        "mean_wape_by_node": mean_by_node(fold_metrics),
         "final_model": last_model,
     }
 
@@ -147,7 +150,7 @@ def tune_hyperparameters(
     en tiempo razonable) sobre el espacio de hiperparámetros del LightGBM.
     """
     feature_columns = get_feature_columns(df)
-    tuning_df = df.dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
+    tuning_df = rows_for_target(df, target_column).dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
     folds = get_walk_forward_folds(tuning_df, n_splits)
 
     def objective(trial: optuna.Trial) -> float:

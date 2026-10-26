@@ -15,6 +15,10 @@ joblib
 torch
 duckdb
 
+# Lectura de los gráficos vectoriales de los informes diarios del Coordinador
+# (src/data/cen_daily_reports.py)
+pymupdf
+
 # Dashboard
 streamlit
 plotly
