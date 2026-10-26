@@ -130,6 +130,8 @@ Todas las cifras salen de correr `python -m src.models.train_forecaster` de punt
 | Charrúa | **18,74%** | 21,02% | 38,41% | −11% |
 | Puerto Montt | 22,91% | **20,81%** | 57,41% | **+10%** |
 
+![WAPE del precio por barra: modelo vs. persistencia](data/processed/price_wape_by_bus.png)
+
 **La ventaja del modelo se achica de norte a sur y se vuelve negativa en Puerto Montt.** En el norte, el colapso del precio a mediodía se puede anticipar con la solar del sistema y la hora del día, algo que la persistencia no ve venir. El precio de Puerto Montt casi no se relaciona con la demanda residual del sistema (correlación 0,19, §2), así que las variables que sostienen a las otras cinco barras no le sirven, y un modelo compartido entre barras le aplica el patrón del norte donde no corresponde. Un modelo por barra o variables propias de la barra (hidrología regional, límites de transmisión) serían el siguiente paso ahí.
 
 **Qué cambió respecto del panel simulado.** La versión anterior de este proyecto pronosticaba el precio con 8,77% de WAPE sobre un panel cuyos precios horarios eran simulados alrededor de un nivel mensual real. Con precios horarios reales el mismo pipeline llega a 18,84%, y su ventaja sobre la persistencia baja de 21% a 14%. Los precios reales tienen muchos ceros (el norte a mediodía), cambian de régimen (un 2022 con promedio de unos 100 USD/MWh, un 2024 bajo 50 en cinco de las seis barras) y se separan por geografía; el simulador no tenía nada de eso.

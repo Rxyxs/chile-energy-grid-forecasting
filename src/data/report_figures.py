@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+import json
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -101,6 +103,34 @@ def plot_price_profile_by_bar() -> None:
     plt.close(fig)
 
 
+def plot_price_wape_by_bus() -> None:
+    """WAPE walk-forward del precio por barra: LightGBM vs. persistencia de 1 hora
+    (requiere haber corrido ``train_forecaster``)."""
+    path = OUT_DIR / "forecaster_metrics.json"
+    if not path.exists():
+        return
+    m = json.loads(path.read_text(encoding="utf-8"))[PRICE_TARGET]
+    nodes = [n for n in BAR_NODES.values() if n in m["lightgbm"]["mean_wape_by_node"]]
+    lgb = [m["lightgbm"]["mean_wape_by_node"][n] for n in nodes]
+    naive = [m["naive_baseline"]["mean_wape_by_node"][n] for n in nodes]
+    labels = [n.replace("_220kV", "").replace("_", " ") for n in nodes]
+    x = range(len(nodes))
+    fig, ax = plt.subplots(figsize=(9, 4.4))
+    ax.bar([i - 0.2 for i in x], naive, width=0.4, color="#9aa0a6", label="Naive (value 1 hour ago)")
+    ax.bar([i + 0.2 for i in x], lgb, width=0.4, color="#2a78d6", label="LightGBM (Optuna-tuned)")
+    for i, (a, b) in enumerate(zip(naive, lgb)):
+        ax.text(i + 0.2, b + 0.4, f"{(b / a - 1) * 100:+.0f}%", ha="center", fontsize=9,
+                color="#d62728" if b > a else "#1b6e3a")
+    ax.set_xticks(list(x)); ax.set_xticklabels(labels)
+    ax.set_ylabel("Walk-forward WAPE (%)")
+    ax.set_title("Hourly marginal cost by bus, north to south: model vs. persistence")
+    ax.set_ylim(0, max(naive + lgb) * 1.3)
+    ax.legend(fontsize=8, loc="upper center", ncol=2)
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "price_wape_by_bus.png", dpi=130)
+    plt.close(fig)
+
+
 def extraction_quality_summary() -> pd.Series:
     q = pd.read_csv(C.REPORT_QUALITY_PATH)
     return pd.Series({
@@ -118,6 +148,7 @@ if __name__ == "__main__":
     check = reconstruction_check()
     plot_reconstruction_check(check)
     plot_price_profile_by_bar()
+    plot_price_wape_by_bus()
     check.round(4).to_csv(OUT_DIR / "real_reconstruction_check.csv")
     print(check.round(3).to_string())
     print(extraction_quality_summary().round(4).to_string())
