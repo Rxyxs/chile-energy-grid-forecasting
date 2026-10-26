@@ -52,7 +52,7 @@
 </figure>
 <figure>
 <img src="figures/real_price_profile_by_bar.png" alt="Real hourly marginal cost by bus" loading="lazy">
-<figcaption><strong>The price splits by geography at noon.</strong> Between 10:00 and 16:00, Crucero, Cardones and Pan de Azúcar sit below 1 USD/MWh in 70-74% of hours (solar surplus in the north), Quillota and Charrúa in 53-56%, and Puerto Montt in only 29%. The system&#x27;s residual demand correlates 0.64-0.73 with the price at five buses and 0.19 at Puerto Montt (<code>notebooks/01_eda_seasonality_analysis.ipynb</code>): one system-wide driver does not price a bus that transmission isolates.</figcaption>
+<figcaption><strong>The price splits by geography at noon.</strong> Between 10:00 and 16:00, Crucero, Cardones and Pan de Azúcar sit below 1 USD/MWh in 70-75% of hours (solar surplus in the north), Quillota and Charrúa in 53-56%, and Puerto Montt in only 29%. The system&#x27;s residual demand correlates 0.64-0.73 with the price at five buses and 0.20 at Puerto Montt (<code>notebooks/01_eda_seasonality_analysis.ipynb</code>): one system-wide driver does not price a bus that transmission isolates.</figcaption>
 </figure>
 <h2>5.1 Walk-forward validation: LightGBM (Optuna-tuned) vs. baselines</h2>
 <figure>
@@ -60,7 +60,7 @@
 <figcaption><strong>The model&#x27;s edge shrinks from north to south and turns negative at Puerto Montt.</strong> In the north, the noon price collapse is predictable from the system&#x27;s solar and the hour of day, which persistence cannot see coming. Puerto Montt&#x27;s price is barely related to the system&#x27;s residual demand (correlation 0.19, §2), so the features that carry the other five buses do not help it, and one model shared across buses applies the northern pattern where it does not hold. A per-bus model or bus-specific drivers (regional hydro, transmission limits) would be the next step there.</figcaption>
 </figure>
 <h2>5.4 A third modeling family: PyTorch MLP vs. LightGBM/XGBoost, and ReLU vs. GELU vs. Swish</h2>
-<p>A dense MLP with a custom Huber loss, trained on the same folds and features as the tree models. On the old simulated panel it was the best model on price; on real prices every activation lands at 21.7-22.0% WAPE, above default LightGBM (19.9%) and level with persistence (21.9%). All 15 runs reach their best validation loss between epochs 8 and 21: the network starts overfitting real prices almost immediately.</p>
+<p>A dense MLP with a custom Huber loss, trained on the same folds and features as the tree models. On the old simulated panel it was the best model on price; on real prices every activation lands at 21.9-22.5% WAPE, above default LightGBM (19.75%) and level with persistence (21.88%). All 15 runs reach their best validation loss between epochs 5 and 27: the network starts overfitting real prices almost immediately.</p>
 <figure>
 <img src="figures/torch_loss_curve_marginal_cost_usd_mwh_animated.gif" alt="MLP PyTorch loss curve, animated" loading="lazy">
 </figure>

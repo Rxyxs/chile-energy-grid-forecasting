@@ -13,7 +13,7 @@
 ![PyMuPDF](https://img.shields.io/badge/PyMuPDF-extracci%C3%B3n%20de%20gr%C3%A1ficos%20vectoriales-1F6FEB)
 ![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
 ![Conformal Prediction](https://img.shields.io/badge/Predicci%C3%B3n%20Conformal-intervalos%20CQR-4a3aa7)
-![pytest](https://img.shields.io/badge/pytest-76%20passing-0A9EDC?logo=pytest&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-78%20passing-0A9EDC?logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 Pronóstico horario del Sistema Eléctrico Nacional (SEN) de Chile sobre **cuatro años de datos horarios reales (2022-2025)**: el costo marginal de 6 barras reales de 220 kV, de Antofagasta a Puerto Montt, y la generación solar, la generación eólica y la demanda del sistema completo. Las series horarias no vienen de una API (la del Coordinador exige una cuenta institucional): se leen de los gráficos vectoriales de sus informes diarios públicos en PDF, se calibran día a día contra los números que imprime cada informe y se validan contra dos series mensuales oficiales independientes. Encima de eso: LightGBM ajustado con Optuna y validado walk-forward contra baselines ingenuos, variables de clima reales (ERA5), Rolling-Origin CV contra XGBoost, una MLP en PyTorch, intervalos de predicción conformales, un pronóstico recursivo multi-step y un dashboard en Streamlit.
@@ -26,14 +26,14 @@ El SEN es una línea de 3.000 km. El norte (Atacama) tiene de las radiaciones so
 
 | Métrica | Resultado | Qué significa |
 |---|---|---|
-| Series horarias reconstruidas de los gráficos del PDF | **1.394 días** con las 6 barras; residuo mediano de calibración **0,04 USD/MWh** | El gráfico de cada día se calibra contra los promedios diarios impresos en el mismo informe |
+| Series horarias reconstruidas de los gráficos del PDF | **1.397 días** con las 6 barras; residuo mediano de calibración **0,04 USD/MWh** | El gráfico de cada día se calibra contra los promedios diarios impresos en el mismo informe |
 | WAPE de la demanda (sistema) | **1,20%** vs. 2,50% del ingenuo | La mitad del error de la persistencia de 1 hora |
-| WAPE de la solar (sistema) | **6,21%** vs. 22,03% del ingenuo, 11,22% la misma hora de ayer | La hora del día y el clima explican la mayor parte |
-| WAPE de la eólica (sistema) | **9,05%** vs. 11,80% del ingenuo | La persistencia es un baseline difícil para el viento |
-| WAPE del costo marginal, 6 barras | **18,84%** vs. 21,87% del ingenuo | Los precios reales son mucho más difíciles que los del panel simulado anterior (8,77%) |
-| Costo marginal en Puerto Montt | LightGBM **22,91%** vs. **20,81%** del ingenuo | La única barra donde el modelo pierde contra la persistencia: está desacoplada de la demanda residual del sistema |
-| MLP de PyTorch sobre el precio | 21,74% (Swish) vs. 18,84% de LightGBM ajustado | Con el panel simulado la MLP ganaba; con precios reales apenas iguala a la persistencia |
-| Precio, intervalo conformal al 90% | **88,8%** de cobertura vs. 85,6% de los cuantiles crudos | Cerca del nominal |
+| WAPE de la solar (sistema) | **6,26%** vs. 22,05% del ingenuo, 11,34% la misma hora de ayer | La hora del día y la producción reciente explican la mayor parte |
+| WAPE de la eólica (sistema) | **9,01%** vs. 11,80% del ingenuo | La persistencia es un baseline difícil para el viento |
+| WAPE del costo marginal, 6 barras | **18,71%** vs. 21,88% del ingenuo | Los precios reales son mucho más difíciles que los del panel simulado anterior (8,77%) |
+| Costo marginal en Puerto Montt | LightGBM **22,75%** vs. **20,82%** del ingenuo | La única barra donde el modelo pierde contra la persistencia: está desacoplada de la demanda residual del sistema |
+| MLP de PyTorch sobre el precio | 22,41% (Swish, elegida en validación) vs. 18,71% de LightGBM ajustado | Con el panel simulado la MLP ganaba; con precios reales no le gana a la persistencia |
+| Precio, intervalo al 90% | **88,7%** de cobertura conformal, 88,9% los cuantiles crudos | Ya cerca del nominal antes de la corrección conformal |
 
 ## 2. Datos: cuatro años de datos horarios reales, leídos de gráficos en PDF
 
@@ -48,9 +48,9 @@ El Coordinador Eléctrico Nacional (CEN) publica el costo marginal horario por b
 **Calibración.** Ninguno de los dos gráficos tiene una escala explícita confiable (la grilla está ajustada a píxeles), así que cada día se calibra contra números que el mismo informe imprime como texto:
 
 - La leyenda del costo marginal imprime el **promedio diario** de cada barra. Con 6 a 8 barras y una recta de 2 parámetros (píxeles → USD/MWh), el ajuste queda sobredeterminado y su residuo mide la reconstrucción. Residuo mediano de la peor barra: **0,04 USD/MWh**; percentil 99: 0,23 (los promedios impresos están redondeados a 0,1).
-- La tabla de generación imprime la **energía diaria** (GWh) de cada tecnología. Una sola escala (MW por punto) tiene que reproducir las cuatro tecnologías grandes a la vez: error mediano de la peor tecnología **0,06%**, percentil 95 2,5%. La forma horaria sale del gráfico y cada tecnología se ajusta después a su energía diaria (las baterías, 1-2% de la energía, se dibujan de forma inconsistente: se ajustan pero no se usan para calibrar).
+- La tabla de generación imprime la **energía diaria** (GWh) de cada tecnología. Una sola escala (MW por punto) tiene que reproducir las cuatro tecnologías grandes a la vez: error mediano de la peor tecnología **0,07%**, percentil 95 2,5%. La forma horaria sale del gráfico y cada tecnología se ajusta después a su energía diaria (las baterías, 1-2% de la energía, se dibujan de forma inconsistente: se ajustan pero no se usan para calibrar).
 
-Llegar a eso exigió manejar cinco formatos de informe: la leyenda de barras cambió nombres y diagramación, los informes de comienzos de 2022 dibujan la eólica solo como una línea sobre el apilado, algunas áreas vienen como varios subtrazos en un mismo dibujo (las baterías descargan de madrugada y de noche, con un hueco al mediodía), el PDF omite los vértices colineales de los tramos planos, y los informes de fines de 2025 suavizan las áreas con curvas Bézier. `tests/test_cen_daily_reports.py` fija esos casos con entradas sintéticas.
+Llegar a eso exigió manejar cinco formatos de informe y los días de cambio de horario (gráficos de 23 o 25 horas): la leyenda de barras cambió nombres y diagramación, los informes de comienzos de 2022 dibujan la eólica solo como una línea sobre el apilado, algunas áreas vienen como varios subtrazos en un mismo dibujo (las baterías descargan de madrugada y de noche, con un hueco al mediodía), el PDF omite los vértices colineales de los tramos planos, y los informes de fines de 2025 suavizan las áreas con curvas Bézier. `tests/test_cen_daily_reports.py` fija esos casos con entradas sintéticas.
 
 **Validación contra fuentes independientes.** Dos series mensuales públicas no se usaron para construir nada, así que sirven para revisarlo:
 
@@ -61,13 +61,13 @@ Llegar a eso exigió manejar cinco formatos de informe: la leyenda de barras cam
 
 **Cómo es el panel.** Ninguna fuente pública trae generación ni demanda *por barra*, así que el panel no las inventa: junto a las 6 barras tiene un séptimo nodo, `SEN`, que lleva los targets de sistema (solar, eólica, demanda) con el clima promedio de las 6 barras. Las filas de cada barra también llevan las series del sistema, para que sus rezagos entren al modelo de precio (el orden de mérito depende de la demanda residual del sistema, no de la de la barra). `real_panel.rows_for_target` decide qué filas entrenan y evalúan cada target: el nodo `SEN` para solar, eólica y demanda, las 6 barras para el precio, así ninguna métrica cuenta siete veces la misma hora del sistema.
 
-**Limpieza.** Las horas en que la generación total cae bajo la mitad de la mediana de su día quedan como faltantes (la hora que no existe el día que empieza el horario de verano, que el gráfico dibuja en 0, y el apagón nacional del 25 de febrero de 2025). Los días sin informe o sin gráfico utilizable quedan faltantes, sin interpolar: el 95,8% de las horas tiene datos del sistema y el 95,9% tiene precios. Los PDF (alrededor de 1 GB) no se versionan; las series horarias extraídas en `data/real/` sí.
+**Limpieza.** Las horas en que la generación total cae bajo la mitad de la mediana de su día quedan como faltantes (la hora que no existe el día que empieza el horario de verano, que el gráfico dibuja en 0, y el apagón nacional del 25 de febrero de 2025). Los días sin informe o sin gráfico utilizable quedan faltantes, sin interpolar: el 96,6% de las horas tiene datos del sistema y el 96,1% tiene precios. Los PDF (alrededor de 1 GB) no se versionan; las series horarias extraídas en `data/real/` sí.
 
 `generate_energy_data(use_real=False)` sigue produciendo el panel completamente simulado original (5 barras, 2024-2025), que se conserva para los tests que necesitan un proceso generador conocido.
 
 ![Costo marginal horario real por barra](data/processed/real_price_profile_by_bar.png)
 
-**El precio se separa por geografía a mediodía.** Entre las 10:00 y las 16:00, Crucero, Cardones y Pan de Azúcar quedan bajo 1 USD/MWh en el 70-74% de las horas (excedente solar del norte), Quillota y Charrúa en el 53-56%, y Puerto Montt solo en el 29%. La demanda residual del sistema correlaciona 0,64-0,73 con el precio en cinco barras y 0,19 en Puerto Montt (`notebooks/01_eda_seasonality_analysis.ipynb`): una sola variable del sistema no fija el precio de una barra que la transmisión aísla.
+**El precio se separa por geografía a mediodía.** Entre las 10:00 y las 16:00, Crucero, Cardones y Pan de Azúcar quedan bajo 1 USD/MWh en el 70-75% de las horas (excedente solar del norte), Quillota y Charrúa en el 53-56%, y Puerto Montt solo en el 29%. La demanda residual del sistema correlaciona 0,64-0,73 con el precio en cinco barras y 0,20 en Puerto Montt (`notebooks/01_eda_seasonality_analysis.ipynb`): una sola variable del sistema no fija el precio de una barra que la transmisión aísla.
 
 ## 3. Arquitectura
 
@@ -114,27 +114,27 @@ El error se reporta como **WAPE** (`sum(|error|) / sum(|real|)`) y no como MAPE,
 
 | Target | WAPE LightGBM | WAPE ingenuo | WAPE estacional | MAE LightGBM |
 |---|---|---|---|---|
-| Solar (sistema) | **6,21%** | 22,03% | 11,22% | 127 MW |
-| Eólica (sistema) | **9,05%** | 11,80% | 34,59% | 111 MW |
-| Demanda (sistema) | **1,20%** | 2,50% | 4,44% | 116 MW |
-| Costo marginal (6 barras) | **18,84%** | 21,87% | 38,97% | $12,52/MWh |
+| Solar (sistema) | **6,26%** | 22,05% | 11,34% | 127 MW |
+| Eólica (sistema) | **9,01%** | 11,80% | 34,48% | 111 MW |
+| Demanda (sistema) | **1,20%** | 2,50% | 4,47% | 116 MW |
+| Costo marginal (6 barras) | **18,71%** | 21,88% | 39,06% | $12,44/MWh |
 
 Todas las cifras salen de correr `python -m src.models.train_forecaster` de punta a punta (semilla 42, 20 trials de Optuna por target). LightGBM le gana a ambos baselines en todos los targets. El resultado de precio se reparte muy distinto por barra:
 
-| Barra (norte → sur) | WAPE LightGBM | WAPE ingenuo | WAPE estacional | LightGBM vs. ingenuo |
-|---|---|---|---|---|
-| Crucero | **17,25%** | 23,38% | 30,91% | −26% |
-| Cardones | **17,47%** | 23,41% | 31,30% | −25% |
-| Pan de Azúcar | **18,13%** | 23,10% | 34,26% | −21% |
-| Quillota | **17,64%** | 20,73% | 36,03% | −15% |
-| Charrúa | **18,74%** | 21,02% | 38,41% | −11% |
-| Puerto Montt | 22,91% | **20,81%** | 57,41% | **+10%** |
-
 ![WAPE del precio por barra: modelo vs. persistencia](data/processed/price_wape_by_bus.png)
 
-**La ventaja del modelo se achica de norte a sur y se vuelve negativa en Puerto Montt.** En el norte, el colapso del precio a mediodía se puede anticipar con la solar del sistema y la hora del día, algo que la persistencia no ve venir. El precio de Puerto Montt casi no se relaciona con la demanda residual del sistema (correlación 0,19, §2), así que las variables que sostienen a las otras cinco barras no le sirven, y un modelo compartido entre barras le aplica el patrón del norte donde no corresponde. Un modelo por barra o variables propias de la barra (hidrología regional, límites de transmisión) serían el siguiente paso ahí.
+| Barra (norte → sur) | WAPE LightGBM | WAPE ingenuo | WAPE estacional | LightGBM vs. ingenuo |
+|---|---|---|---|---|
+| Crucero | **17,20%** | 23,38% | 31,03% | −26% |
+| Cardones | **17,41%** | 23,41% | 31,44% | −26% |
+| Pan de Azúcar | **18,01%** | 23,10% | 34,36% | −22% |
+| Quillota | **17,52%** | 20,73% | 36,15% | −15% |
+| Charrúa | **18,59%** | 21,02% | 38,54% | −12% |
+| Puerto Montt | 22,75% | **20,82%** | 57,47% | **+9%** |
 
-**Qué cambió respecto del panel simulado.** La versión anterior de este proyecto pronosticaba el precio con 8,77% de WAPE sobre un panel cuyos precios horarios eran simulados alrededor de un nivel mensual real. Con precios horarios reales el mismo pipeline llega a 18,84%, y su ventaja sobre la persistencia baja de 21% a 14%. Los precios reales tienen muchos ceros (el norte a mediodía), cambian de régimen (un 2022 con promedio de unos 100 USD/MWh, un 2024 bajo 50 en cinco de las seis barras) y se separan por geografía; el simulador no tenía nada de eso.
+**La ventaja del modelo se achica de norte a sur y se vuelve negativa en Puerto Montt.** En el norte, el colapso del precio a mediodía se puede anticipar con la solar del sistema y la hora del día, algo que la persistencia no ve venir. El precio de Puerto Montt casi no se relaciona con la demanda residual del sistema (correlación 0,20, §2), así que las variables que sostienen a las otras cinco barras no le sirven, y un modelo compartido entre barras le aplica el patrón del norte donde no corresponde. Un modelo por barra o variables propias de la barra (hidrología regional, límites de transmisión) serían el siguiente paso ahí.
+
+**Qué cambió respecto del panel simulado.** La versión anterior de este proyecto pronosticaba el precio con 8,77% de WAPE sobre un panel cuyos precios horarios eran simulados alrededor de un nivel mensual real. Con precios horarios reales el mismo pipeline llega a 18,71%, y su ventaja sobre la persistencia baja de 21% a 14%. Los precios reales tienen muchos ceros (el norte a mediodía), cambian de régimen (un 2022 con promedio de unos 100 USD/MWh, un 2024 bajo 50 en cinco de las seis barras) y se separan por geografía; el simulador no tenía nada de eso.
 
 ### 5.2 Aislando el efecto del clima: una ablación controlada (`notebooks/02_Weather_Augmented_Rolling_CV.ipynb`)
 
@@ -142,12 +142,12 @@ El notebook compara cada target **con y sin** los rezagos de clima, con hiperpar
 
 | Target | WAPE sin clima | WAPE con clima | Delta |
 |---|---|---|---|
-| Solar (sistema) | 6,24% | 6,22% | +0,02 pts |
-| Eólica (sistema) | 9,27% | 9,17% | **+0,10 pts** |
+| Solar (sistema) | 6,29% | 6,26% | +0,04 pts |
+| Eólica (sistema) | 9,25% | 9,18% | +0,07 pts |
 | Demanda (sistema) | 1,26% | 1,24% | +0,02 pts |
-| Costo marginal (6 barras) | 19,75% | 19,94% | −0,19 pts |
+| Costo marginal (6 barras) | 19,87% | 19,75% | +0,12 pts |
 
-**Con datos reales, el clima de seis subestaciones casi no aporta.** En el panel simulado ayudaba a la solar en 0,29 puntos y a la eólica en 0,54, pero ahí la generación se calculaba *desde* ese mismo clima, así que el clima traía información por construcción. Aquí los targets son la producción de todo el sistema, y seis puntos de clima son un proxy débil: la mejor barra correlaciona 0,84 con la solar del sistema pero solo 0,43 con su eólica (§2, notebook 01). Los rezagos de la propia solar más la hora del día ya contienen lo que agregan los de radiación, y el precio empeora levemente con doce variables más y sin reajuste. Lo que movería estos números es un pronóstico meteorológico real para las horas siguientes, en los parques y no en las subestaciones.
+**Con datos reales, el clima de seis subestaciones casi no aporta.** Todos los deltas están dentro de 0,12 puntos, y el del precio cambió de signo entre dos corridas de este proyecto (−0,19 puntos antes de agregar 13 días más de informes, +0,12 después): a este tamaño es ruido. En el panel simulado el clima ayudaba a la solar en 0,29 puntos y a la eólica en 0,54, pero ahí la generación se calculaba *desde* ese mismo clima, así que el clima traía información por construcción. Aquí los targets son la producción de todo el sistema, y seis puntos de clima son un proxy débil: la mejor barra correlaciona 0,84 con la solar del sistema pero solo 0,43 con su eólica (§2, notebook 01). Lo que movería estos números es un pronóstico meteorológico real para las horas siguientes, en los parques y no en las subestaciones.
 
 ### 5.3 Rolling-Origin CV: estabilidad temporal de LightGBM vs. XGBoost
 
@@ -155,12 +155,12 @@ El notebook compara cada target **con y sin** los rezagos de clima, con hiperpar
 
 | Target | LightGBM WAPE medio (CV) | XGBoost WAPE medio (CV) |
 |---|---|---|
-| Solar | **4,94% (0,077)** | 5,18% (0,095) |
-| Eólica | 9,39% (0,093) | 9,63% (0,095) |
-| Demanda | 1,30% (0,122) | 1,35% (0,115) |
-| Costo marginal | 24,77% (0,134) | 25,01% (**0,116**) |
+| Solar | **5,01%** (0,104) | 5,28% (**0,085**) |
+| Eólica | **9,44% (0,091)** | 9,67% (0,100) |
+| Demanda | **1,30% (0,107)** | 1,37% (0,119) |
+| Costo marginal | **24,97% (0,129)** | 25,23% (0,137) |
 
-CV = coeficiente de variación (desvío/media) del WAPE entre folds; más bajo significa más estable entre bloques de tiempo. Las cifras de XGBoost cambian levemente entre corridas (25,01% vs. 25,06% en precio en la corrida del notebook) por la construcción multihilo de sus histogramas. LightGBM es algo más preciso en todos los targets, pero en precio XGBoost es ahora el más estable (CV 0,116 vs. 0,134), al revés que en el panel simulado, donde LightGBM era 2,6 veces más estable. Con una ventana fija de 180 días el error de precio (21-30% por fold) es mayor que en el walk-forward expansivo de §5.1: medio año de historia no contiene los regímenes de precio que sí contiene la historia completa.
+CV = coeficiente de variación (desvío/media) del WAPE entre folds; más bajo significa más estable entre bloques de tiempo. **LightGBM es algo más preciso en los cuatro targets; cuál modelo es más estable no es un resultado robusto.** En precio, esta corrida le da a LightGBM el CV más bajo (0,129 vs. 0,137), mientras que la corrida de la misma comparación en el notebook se lo da a XGBoost (0,124), porque la construcción multihilo de los histogramas de XGBoost no es reproducible bit a bit, y una corrida anterior con 13 días menos también dejaba adelante a XGBoost. En el panel simulado LightGBM era 2,6 veces más estable; con datos reales los dos son indistinguibles. Con una ventana fija de 180 días el error de precio (20-32% por fold) es mayor que en el walk-forward expansivo de §5.1: medio año de historia no contiene los regímenes de precio que sí contiene la historia completa.
 
 El panel histórico del dashboard muestra el precio real vs. el pronosticado sobre el test fuera de muestra del último fold (predicciones realmente retenidas, no ajuste dentro de muestra), y un panel aparte corre el pronóstico recursivo sobre horas que no están en los datos.
 
@@ -172,17 +172,17 @@ Walk-forward, 5 folds, target `marginal_cost_usd_mwh` (`python -m src.models.gen
 
 | Modelo | WAPE | MAE | Latencia de inferencia (ms / 1k filas) |
 |---|---|---|---|
-| Ingenuo (persistencia 1h) | 21,87% | $14,38/MWh | -- |
-| Estacional ingenuo (24h) | 38,97% | $25,51/MWh | -- |
-| LightGBM (parámetros por defecto) | **19,94%** | **$13,18/MWh** | -- |
-| XGBoost | 21,08% | $13,91/MWh | -- |
-| MLP PyTorch — ReLU | 22,03% | $14,64/MWh | 0,68 |
-| MLP PyTorch — GELU | 22,01% | $14,53/MWh | 0,66 |
-| MLP PyTorch — Swish (elegida en validación) | 21,74% | $14,35/MWh | 0,67 |
+| Ingenuo (persistencia 1h) | 21,88% | $14,39/MWh | -- |
+| Estacional ingenuo (24h) | 39,06% | $25,56/MWh | -- |
+| LightGBM (parámetros por defecto) | **19,75%** | **$13,12/MWh** | -- |
+| XGBoost | 20,92% | $13,88/MWh | -- |
+| MLP PyTorch — ReLU | 22,50% | $14,94/MWh | 0,52 |
+| MLP PyTorch — GELU | 21,89% | $14,57/MWh | 0,53 |
+| MLP PyTorch — Swish (elegida en validación) | 22,41% | $14,84/MWh | 0,55 |
 
-**Con precios reales la MLP pierde contra ambos árboles y solo empata con la persistencia.** En el panel simulado era el mejor modelo (7,83% contra 10,07% de LightGBM por defecto); aquí las tres activaciones quedan en 21,7-22,0%, sobre LightGBM por defecto (19,94%) y el ajustado (18,84%). Las tres activaciones están a menos de 0,3 puntos entre sí, así que elegir entre ellas no importa a esta escala.
+**Con precios reales la MLP pierde contra ambos árboles y no le gana a la persistencia.** En el panel simulado era el mejor modelo (7,83% contra 10,07% de LightGBM por defecto); aquí las tres activaciones quedan en 21,9-22,5%, sobre LightGBM por defecto (19,75%), el ajustado (18,71%) y más o menos al nivel de la persistencia (21,88%). La activación elegida por la loss de validación (Swish) no es la mejor en test (GELU): las tres están a menos de 0,6 puntos entre sí, así que elegir entre ellas es ruido a esta escala.
 
-**Protocolo de entrenamiento.** Dentro de cada fold walk-forward, el último 15% de las horas de entrenamiento se reserva como validación; las horas de test del fold no se tocan hasta evaluar. Cada red entrena al menos 100 épocas (máximo 300), luego el early stopping corta tras 20 épocas sin mejora en la loss de validación y restaura los pesos de la mejor época; la tasa de aprendizaje se reduce a la mitad en las mesetas. El estado completo se guarda en un checkpoint cada época (`data/checkpoints/`). **Las 15 corridas alcanzan su mejor loss de validación entre las épocas 8 y 21** y se detienen en el mínimo de 100: con precios reales la red empieza a sobreajustar casi de inmediato, y la regla del mínimo de épocas solo agrega épocas que el early stopping después descarta. Las métricas se guardan en `data/processed/metrics.duckdb` (tabla `model_comparison`).
+**Protocolo de entrenamiento.** Dentro de cada fold walk-forward, el último 15% de las horas de entrenamiento se reserva como validación; las horas de test del fold no se tocan hasta evaluar. Cada red entrena al menos 100 épocas (máximo 300), luego el early stopping corta tras 20 épocas sin mejora en la loss de validación y restaura los pesos de la mejor época; la tasa de aprendizaje se reduce a la mitad en las mesetas. El estado completo se guarda en un checkpoint cada época (`data/checkpoints/`). **Las 15 corridas alcanzan su mejor loss de validación entre las épocas 5 y 27** y se detienen en el mínimo de 100: con precios reales la red empieza a sobreajustar casi de inmediato, y la regla del mínimo de épocas solo agrega épocas que el early stopping después descarta. Las métricas se guardan en `data/processed/metrics.duckdb` (tabla `model_comparison`).
 
 ![Curva de loss de la MLP en PyTorch, animada](data/processed/torch_loss_curve_marginal_cost_usd_mwh_animated.gif)
 ![Curva de loss de la MLP en PyTorch](data/processed/torch_loss_curve_marginal_cost_usd_mwh.png)
@@ -193,14 +193,14 @@ Un par de regresores cuantílicos LightGBM (percentiles 5 y 95, un intervalo nom
 
 | Target | Cobertura cuantiles crudos | Cobertura conformal | Nominal | Ancho crudo | Ancho conformal |
 |---|---|---|---|---|---|
-| Solar (sistema) | 71,1% | 83,9% | 90% | 430 MW | 542 MW |
-| Eólica (sistema) | 81,3% | **89,5%** | 90% | 399 MW | 493 MW |
-| Demanda (sistema) | 78,0% | 87,5% | 90% | 384 MW | 486 MW |
-| Costo marginal (6 barras) | 85,6% | **88,8%** | 90% | 58,3 $/MWh | 59,6 $/MWh |
+| Solar (sistema) | 70,4% | 84,1% | 90% | 432 MW | 546 MW |
+| Eólica (sistema) | 81,4% | **89,5%** | 90% | 397 MW | 488 MW |
+| Demanda (sistema) | 79,0% | 87,9% | 90% | 412 MW | 510 MW |
+| Costo marginal (6 barras) | **88,9%** | 88,7% | 90% | 62,4 $/MWh | 62,6 $/MWh |
 
-**Los cuantiles crudos subcubren en todos los targets, y la conformalización cierra la mayor parte de la brecha**: a menos de medio punto del nominal en eólica y a 1,2 puntos en precio. La banda de precio es ancha (unos 60 USD/MWh) porque el precio real puede estar en cero o cerca de 150 en la misma hora según el día.
+**Los cuantiles crudos subcubren la solar, la eólica y la demanda en 9-20 puntos, y la conformalización cierra la mayor parte de esa brecha** (la eólica a menos de medio punto del nominal). En precio los cuantiles crudos ya cubren el 88,9%, así que el margen conformal es casi cero y no cambia nada. La banda de precio es ancha (unos 62 USD/MWh) porque el precio real puede estar en cero o cerca de 150 en la misma hora según el día.
 
-**El intervalo de la solar está mal calibrado dentro del día.** En el modelo desplegado (último fold), las horas de noche (44% del test) quedan cubiertas el 100% de las veces con una banda de 255 MW que no necesitan, mientras las horas de día quedan cubiertas solo el 71,5% de las veces con 1.040 MW. Un único margen calibrado sobre ambos regímenes es demasiado ancho para el que no tiene varianza y demasiado angosto para el que sí: una limitación del CQR de margen global sobre un target con muchos ceros. Calibrar por separado de día y de noche sería el arreglo natural; no está implementado.
+**El intervalo de la solar está mal calibrado dentro del día.** En el modelo desplegado (último fold), las horas de noche (44% del test) quedan cubiertas el 100% de las veces con una banda de 247 MW que no necesitan, mientras las horas de día quedan cubiertas solo el 71,6% de las veces con 1.030 MW. Un único margen calibrado sobre ambos regímenes es demasiado ancho para el que no tiene varianza y demasiado angosto para el que sí: una limitación del CQR de margen global sobre un target con muchos ceros. Calibrar por separado de día y de noche sería el arreglo natural; no está implementado.
 
 **Cruce de cuantiles.** Los dos regresores cuantílicos se entrenan por separado, así que nada impide que se crucen en una fila; `rectify_crossing` aplica el arreglo estándar (mínimo/máximo elemento a elemento, Chernozhukov, Fernández-Val y Galichon, 2010) en todo lugar donde se construye o evalúa un intervalo, y `tests/test_forecast.py::test_forecast_intervals_are_never_crossed` lo fija sobre la salida recursiva de `forecast_node`.
 
@@ -212,13 +212,13 @@ Corre `python -m src.models.conformal` después de `train_forecaster.py` (reutil
 python -m src.models.forecast --horizon 12 --nodes Crucero_220kV,Puerto_Montt_220kV
 ```
 
-Salida real, partiendo a medianoche local del 2026-01-01 (la primera hora después de los datos): el pronóstico del sistema pone la solar en 1,2 GW a las 07:00 y en 6,7 GW a las 11:00. Con esa trayectoria del sistema, **el precio de Crucero cae de unos 52 USD/MWh en la noche a 1-4 USD/MWh entre las 08:00 y las 10:00**, mientras **el de Puerto Montt baja a 13 USD/MWh a las 08:00 y vuelve a 35-39 entre las 10:00 y las 11:00**: el desacople norte-sur de §2, recuperado de las propias predicciones recursivas del modelo. La solar pronosticada de noche no es exactamente cero (25-64 MW, alrededor de 1% del máximo): el modelo no tiene una restricción física, solo un piso en 0.
+Salida real, partiendo a medianoche local del 2026-01-01 (la primera hora después de los datos): el pronóstico del sistema pone la solar en 1,15 GW a las 07:00 y en 6,9 GW a las 11:00. Con esa trayectoria del sistema, **el precio de Crucero cae de 51-62 USD/MWh en la noche a 0-1 USD/MWh entre las 08:00 y las 10:00**, mientras **el de Puerto Montt baja a 19 USD/MWh a las 08:00 y vuelve a 30-41 entre las 09:00 y las 11:00**: el desacople norte-sur de §2, recuperado de las propias predicciones recursivas del modelo. La solar pronosticada de noche no es exactamente cero (19-73 MW, alrededor de 1% del máximo): el modelo no tiene una restricción física, solo un piso en 0.
 
 **Limitación:** `forecast.py` persiste los últimos valores de clima *conocidos* hacia las horas futuras (ver `forecast_node`, `last_known_weather`), porque el proyecto usa observaciones meteorológicas históricas, no un pronóstico meteorológico. La solar sigue la hora del día porque la codificación cíclica se recalcula para cada hora futura, pero la eólica solo sigue sus propios rezagos. Un despliegue en producción necesitaría un pronóstico meteorológico real para el horizonte.
 
 ## 7. Stack tecnológico
 
-Python · **PyMuPDF** (extracción de gráficos vectoriales de los informes diarios del CEN) · Polars · pandas · NumPy · LightGBM (puntual + regresión cuantílica) · XGBoost · **PyTorch** (MLP, loss Huber propia, ReLU/GELU/Swish) · **Conformalized Quantile Regression** · **DuckDB** (almacén de métricas) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (2 notebooks) · pytest (76 tests: geometría y lectura de la extracción de gráficos, validación cruzada de las series reconstruidas, estructura del panel y filas por target, fuga de variables, invariantes de los folds, baselines, pronóstico recursivo incluido el acople sistema-barra, cobertura y cruce conformal, MLP/loss Huber en PyTorch, ida y vuelta en DuckDB, smoke test del dashboard)
+Python · **PyMuPDF** (extracción de gráficos vectoriales de los informes diarios del CEN) · Polars · pandas · NumPy · LightGBM (puntual + regresión cuantílica) · XGBoost · **PyTorch** (MLP, loss Huber propia, ReLU/GELU/Swish) · **Conformalized Quantile Regression** · **DuckDB** (almacén de métricas) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (2 notebooks) · pytest (78 tests: geometría y lectura de la extracción de gráficos, validación cruzada de las series reconstruidas, estructura del panel y filas por target, fuga de variables, invariantes de los folds, baselines, pronóstico recursivo incluido el acople sistema-barra, cobertura y cruce conformal, MLP/loss Huber en PyTorch, ida y vuelta en DuckDB, smoke test del dashboard)
 
 ## 8. Cómo ejecutar
 
