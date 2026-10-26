@@ -143,7 +143,12 @@ def parse_daily_table(words: list[tuple]) -> dict[str, float]:
         for head in heads:
             row = sorted((w for w in words if abs(w[1] - head[1]) < 0.5 * (head[3] - head[1]) and w[0] > head[0]),
                          key=lambda w: w[0])
-            if len(row) < 2 or not NUMBER_RE.match(row[0][4]) or not any("%" in w[4] for w in row[1:3]):
+            # La participación en % distingue la fila del día del eje del gráfico;
+            # en algunos informes de 2025 el signo % no viene como texto, pero la
+            # participación sigue siendo un segundo número con dos decimales.
+            if len(row) < 2 or not NUMBER_RE.match(row[0][4]):
+                continue
+            if not (any("%" in w[4] for w in row[1:3]) or NUMBER_RE.match(row[1][4])):
                 continue
             val = parse_number_cl(row[0][4])
             if val < 1000:
@@ -205,12 +210,31 @@ def vertical_extent(polygon: np.ndarray, x: float) -> float:
     return span[1] - span[0] if span else 0.0
 
 
+POINTS_PER_DAY = {23, 24, 25, 92, 96, 100}  # horario, o cada 15 min; días de 23, 24 y 25 horas
+
+
+def to_hourly(values) -> np.ndarray:
+    """Lleva los puntos de un día a 24 valores horarios (hora 1 a 24).
+
+    Cada 15 minutos (92-100 puntos) se promedia por hora. Los días de cambio de
+    horario traen 23 horas (falta la primera: el reloj salta de 00:00 a 01:00) o
+    25 (la hora repetida al volver al horario de invierno, que se promedia)."""
+    v = np.asarray(values, dtype=float)
+    if len(v) in (92, 96, 100):
+        v = v.reshape(-1, 4).mean(axis=1)
+    if len(v) == 23:
+        return np.concatenate([[np.nan], v])
+    if len(v) == 25:
+        return np.concatenate([v[:23], [v[23:].mean()]])
+    return v
+
+
 def _cmg_lines(page) -> list[tuple[int, np.ndarray, object]]:
     """Polilíneas del gráfico de costo marginal (24 o 96 puntos, mitad derecha de la página)."""
     out = []
     for d in page.get_drawings():
         n = len(d["items"])
-        if (d["color"] and d["fill"] is None and n in (23, 95)
+        if (d["color"] and d["fill"] is None and n + 1 in POINTS_PER_DAY
                 and all(it[0] == "l" for it in d["items"]) and d["rect"].x0 > page.rect.width * 0.38):
             r, g, b = (int(round(v * 255)) for v in d["color"])
             out.append(((r << 16) | (g << 8) | b, _polyline_points(d), d["rect"]))
@@ -265,14 +289,12 @@ def extract_cmg(doc) -> tuple[pd.DataFrame, float, str]:
         Y = np.array([p[1] for p in pairs])
         slope, icpt = np.polyfit(X, Y, 1)
         resid = float(np.abs(Y - (icpt + slope * X)).max())
-        kind = "real_preliminar" if len(pairs[0][2]) == 24 else "en_linea"
+        kind = "real_preliminar" if len(pairs[0][2]) <= 25 else "en_linea"
         rows = []
         for bar, _, ys in pairs:
-            vals = icpt + slope * ys
-            if len(vals) == 96:
-                vals = vals.reshape(24, 4).mean(axis=1)
-            for h, v in enumerate(vals, start=1):
-                rows.append((bar, h, round(float(v), 2)))
+            for h, v in enumerate(to_hourly(icpt + slope * ys), start=1):
+                if np.isfinite(v):
+                    rows.append((bar, h, round(float(v), 2)))
         return pd.DataFrame(rows, columns=["bar", "hour", "cmg_usd_mwh"]), resid, kind
     return pd.DataFrame(columns=["bar", "hour", "cmg_usd_mwh"]), float("nan"), "none"
 
@@ -290,14 +312,14 @@ def extract_generation(doc, table: dict[str, float]) -> tuple[pd.DataFrame, floa
                 tech = _nearest_tech(tuple(f))
                 if tech:
                     areas.extend((tech, part) for part in _subpaths(d))
-            elif d["color"] == (0.0, 0.0, 0.0) and f is None and len(d["items"]) == 23:
+            elif d["color"] == (0.0, 0.0, 0.0) and f is None and len(d["items"]) + 1 in (23, 24, 25):
                 top_lines.append(_polyline_points(d))
         if len(areas) < 3:
             continue
         grid = None
         for _, P in areas:
             xr = np.round(P[:, 0], 1)
-            if len(np.unique(xr)) == 24:
+            if len(np.unique(xr)) in (23, 24, 25):
                 grid = np.array([P[xr == v, 0].mean() for v in np.unique(xr)])  # x exactas de cada hora
                 break
         if grid is None:
@@ -330,7 +352,7 @@ def extract_generation(doc, table: dict[str, float]) -> tuple[pd.DataFrame, floa
         # sola escala no las reproduce todas, ver ``gen_max_rel_err``).
         factor = {t: (table[t] * 1000) / (scale * thick[t].sum()) for t in common}
         rows = [(tech, h, round(float(v * scale * factor.get(tech, 1.0)), 1))
-                for tech, arr in thick.items() for h, v in enumerate(arr, 1)]
+                for tech, arr in thick.items() for h, v in enumerate(to_hourly(arr), 1) if np.isfinite(v)]
         return pd.DataFrame(rows, columns=["tech", "hour", "mw"]), err
     return pd.DataFrame(columns=["tech", "hour", "mw"]), float("nan")
 
@@ -349,7 +371,10 @@ def extract_report(path: Path) -> dict:
     return {"cmg": cmg, "cmg_resid": cmg_resid, "cmg_kind": kind, "gen": gen, "gen_err": gen_err, "table": table}
 
 
-def extract_all() -> None:
+def extract_all(merge: bool = True) -> None:
+    """Extrae todos los PDF de ``PDF_DIR``. Con ``merge`` (por defecto) actualiza
+    solo los días presentes y conserva el resto de las series ya versionadas, así
+    se puede reextraer un puñado de días sin volver a bajar todo el archivo."""
     cmg_parts, gen_parts, quality = [], [], []
     for path in sorted(PDF_DIR.glob("*.pdf")):
         day = path.stem
@@ -367,9 +392,16 @@ def extract_all() -> None:
                         **{f"table_{k}_gwh": v for k, v in r["table"].items()}})
     cmg = pd.concat(cmg_parts)[["date", "hour", "bar", "kind", "cmg_usd_mwh"]]
     gen = pd.concat(gen_parts).pivot_table(index=["date", "hour"], columns="tech", values="mw").reset_index()
+    quality = pd.DataFrame(quality)
+    if merge and CMG_HOURLY_PATH.exists():
+        done = set(quality["date"])
+        old_cmg, old_gen, old_q = (pd.read_csv(x) for x in (CMG_HOURLY_PATH, GEN_HOURLY_PATH, REPORT_QUALITY_PATH))
+        cmg = pd.concat([old_cmg[~old_cmg["date"].isin(done)], cmg]).sort_values(["date", "hour", "bar"])
+        gen = pd.concat([old_gen[~old_gen["date"].isin(done)], gen]).sort_values(["date", "hour"])
+        quality = pd.concat([old_q[~old_q["date"].isin(done)], quality]).sort_values("date")
     cmg.to_csv(CMG_HOURLY_PATH, index=False)
     gen.to_csv(GEN_HOURLY_PATH, index=False)
-    pd.DataFrame(quality).to_csv(REPORT_QUALITY_PATH, index=False)
+    quality.to_csv(REPORT_QUALITY_PATH, index=False)
     print(f"cmg: {cmg['date'].nunique()} días, gen: {gen['date'].nunique()} días -> {REAL_DIR}")
 
 

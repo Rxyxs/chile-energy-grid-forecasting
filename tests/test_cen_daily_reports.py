@@ -57,3 +57,17 @@ def test_bar_names_cover_both_legend_formats():
     assert C._bar_name("Pan de Azúcar") == C._bar_name("P.AZUCAR") == "Pan de Azucar"
     assert C._bar_name("Puerto Montt") == C._bar_name("P.MONTT") == "Puerto Montt"
     assert C._bar_name("Alto Jahuel") is None
+
+
+def test_to_hourly_handles_quarter_hours_and_daylight_saving_days():
+    assert C.to_hourly(np.repeat(np.arange(24.0), 4)).tolist() == list(range(24))
+    spring = C.to_hourly(np.arange(1.0, 24.0))          # 23 horas: falta la primera
+    assert np.isnan(spring[0]) and spring[1:].tolist() == list(range(1, 24))
+    autumn = C.to_hourly(np.r_[np.arange(23.0), 10.0, 20.0])  # 25 horas: la repetida se promedia
+    assert len(autumn) == 24 and autumn[-1] == 15.0
+    assert len(C.to_hourly(np.zeros(92))) == 24
+
+
+def test_parse_daily_table_accepts_rows_whose_percent_sign_is_missing():
+    words = _row(100, "Solar", "43,41", "17,82", "134,75") + _row(200, "Solar", "1", "4", "7")
+    assert C.parse_daily_table(words) == {"solar": 43.41}
