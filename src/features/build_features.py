@@ -34,7 +34,7 @@ WEATHER_COLUMNS = ["ghi_w_m2", "wind_speed_ms", "temperature_c"]
 WEATHER_LAG_HOURS = [1, 3, 6, 24]
 
 TWO_PI = 2 * math.pi
-CHILE_HOLIDAYS = holidays.Chile(years=range(2023, 2028))
+CHILE_HOLIDAYS = holidays.Chile(years=range(2021, 2028))
 
 
 def load_raw_data(path: Path = RAW_PATH) -> pl.DataFrame:

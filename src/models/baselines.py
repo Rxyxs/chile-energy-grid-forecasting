@@ -8,14 +8,15 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.models.validation import get_walk_forward_folds, wape
+from src.data.real_panel import rows_for_target
+from src.models.validation import get_walk_forward_folds, mean_by_node, wape, wape_by_node
 
 NAIVE_LAG_SUFFIX = "_lag_1h"
 SEASONAL_LAG_SUFFIX = "_lag_24h"
 
 
 def _lag_column_metrics(df: pd.DataFrame, target_column: str, lag_column: str, n_splits: int) -> dict:
-    subset = df.dropna(subset=[target_column, lag_column]).reset_index(drop=True)
+    subset = rows_for_target(df, target_column).dropna(subset=[target_column, lag_column]).reset_index(drop=True)
 
     fold_metrics = []
     for fold, (train_ts, test_ts) in enumerate(get_walk_forward_folds(subset, n_splits)):
@@ -27,6 +28,7 @@ def _lag_column_metrics(df: pd.DataFrame, target_column: str, lag_column: str, n
             "test_rows": int(len(test_df)),
             "wape": wape(y_true, y_pred),
             "mae": float(np.abs(y_true - y_pred).mean()),
+            "wape_by_node": wape_by_node(test_df["node"], y_true, y_pred),
         })
 
     return {
@@ -35,6 +37,7 @@ def _lag_column_metrics(df: pd.DataFrame, target_column: str, lag_column: str, n
         "fold_metrics": fold_metrics,
         "mean_wape": float(np.mean([m["wape"] for m in fold_metrics])),
         "mean_mae": float(np.mean([m["mae"] for m in fold_metrics])),
+        "mean_wape_by_node": mean_by_node(fold_metrics),
     }
 
 

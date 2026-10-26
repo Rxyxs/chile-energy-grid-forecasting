@@ -13,6 +13,7 @@ import time
 
 import numpy as np
 
+from src.data.real_panel import rows_for_target
 from src.models.baselines import naive_metrics, seasonal_naive_metrics
 from src.models.metrics_db import get_connection, record_comparison_row
 from src.models.rolling_stability import LGBM_PARAMS, XGB_PARAMS, _prepare_fold as _tree_prepare_fold
@@ -32,7 +33,7 @@ def _tree_wape_mae(df, target_column: str, n_splits: int, model_cls, params: dic
     defecto y este reporte solo necesita el WAPE/MAE comparable, no el
     modelo tuneado final."""
     feature_columns = get_feature_columns(df)
-    clean_df = df.dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
+    clean_df = rows_for_target(df, target_column).dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
 
     fold_metrics = []
     for train_ts, test_ts in get_walk_forward_folds(clean_df, n_splits):
@@ -69,7 +70,7 @@ def run(target_column: str = DEFAULT_TARGET, n_splits: int = N_SPLITS, epochs: i
               f"MAE {result['mean_mae']:.2f} | épocas por fold {epochs}")
 
     feature_columns = get_feature_columns(df)
-    clean_df = df.dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
+    clean_df = rows_for_target(df, target_column).dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
     last_train_ts, last_test_ts = list(get_walk_forward_folds(clean_df, n_splits))[-1]
     test_mask = clean_df["timestamp"].isin(last_test_ts)
     encoded_test = clean_df.loc[test_mask, feature_columns]

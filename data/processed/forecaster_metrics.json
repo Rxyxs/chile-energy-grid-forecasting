@@ -2,18 +2,18 @@
   "solar_generation_mwh": {
     "tuning": {
       "best_params": {
-        "n_estimators": 500,
-        "learning_rate": 0.03355131256102362,
-        "num_leaves": 84,
+        "n_estimators": 200,
+        "learning_rate": 0.07420250740813597,
+        "num_leaves": 35,
         "max_depth": 7,
-        "min_child_samples": 39,
-        "feature_fraction": 0.8388049554799256,
-        "bagging_fraction": 0.7785288033800144,
-        "bagging_freq": 7,
-        "reg_alpha": 0.6365364806233209,
-        "reg_lambda": 0.89284321218577
+        "min_child_samples": 28,
+        "feature_fraction": 0.7379999607762956,
+        "bagging_fraction": 0.8919339318126805,
+        "bagging_freq": 5,
+        "reg_alpha": 1.310618018163535,
+        "reg_lambda": 3.2995575446337932
       },
-      "best_tuning_wape": 4.89708039583464,
+      "best_tuning_wape": 6.082677056634495,
       "n_trials": 20
     },
     "lightgbm": {
@@ -74,56 +74,74 @@
       "n_splits": 5,
       "lgbm_params": {
         "verbosity": -1,
-        "n_estimators": 500,
-        "learning_rate": 0.03355131256102362,
-        "num_leaves": 84,
+        "n_estimators": 200,
+        "learning_rate": 0.07420250740813597,
+        "num_leaves": 35,
         "max_depth": 7,
-        "min_child_samples": 39,
-        "feature_fraction": 0.8388049554799256,
-        "bagging_fraction": 0.7785288033800144,
-        "bagging_freq": 7,
-        "reg_alpha": 0.6365364806233209,
-        "reg_lambda": 0.89284321218577
+        "min_child_samples": 28,
+        "feature_fraction": 0.7379999607762956,
+        "bagging_fraction": 0.8919339318126805,
+        "bagging_freq": 5,
+        "reg_alpha": 1.310618018163535,
+        "reg_lambda": 3.2995575446337932
       },
       "fold_metrics": [
         {
           "fold": 0,
-          "train_rows": 14480,
-          "test_rows": 14480,
-          "wape": 8.646069037047543,
-          "mae": 2.541077659833941
+          "train_rows": 5213,
+          "test_rows": 5212,
+          "wape": 9.263783273778484,
+          "mae": 182.5234740257936,
+          "wape_by_node": {
+            "SEN": 9.263783273778484
+          }
         },
         {
           "fold": 1,
-          "train_rows": 28960,
-          "test_rows": 14480,
-          "wape": 4.853297483431747,
-          "mae": 1.9457633133983068
+          "train_rows": 10425,
+          "test_rows": 5212,
+          "wape": 5.339413993850982,
+          "mae": 90.95661927138498,
+          "wape_by_node": {
+            "SEN": 5.339413993850982
+          }
         },
         {
           "fold": 2,
-          "train_rows": 43440,
-          "test_rows": 14480,
-          "wape": 3.4289847436307945,
-          "mae": 1.414704808141616
+          "train_rows": 15637,
+          "test_rows": 5212,
+          "wape": 5.196153555293921,
+          "mae": 102.77769809159287,
+          "wape_by_node": {
+            "SEN": 5.196153555293921
+          }
         },
         {
           "fold": 3,
-          "train_rows": 57920,
-          "test_rows": 14480,
-          "wape": 5.873086474396047,
-          "mae": 1.7615939182450613
+          "train_rows": 20849,
+          "test_rows": 5212,
+          "wape": 5.117181827839678,
+          "mae": 117.56188004278201,
+          "wape_by_node": {
+            "SEN": 5.117181827839678
+          }
         },
         {
           "fold": 4,
-          "train_rows": 72400,
-          "test_rows": 14480,
-          "wape": 4.950285534800365,
-          "mae": 2.391902827269089
+          "train_rows": 26061,
+          "test_rows": 5212,
+          "wape": 6.156383613877877,
+          "mae": 139.16987204480387,
+          "wape_by_node": {
+            "SEN": 6.156383613877877
+          }
         }
       ],
-      "mean_wape": 5.550344654661299,
-      "mean_mae": 2.011008505377603
+      "mean_wape": 6.214583252928189,
+      "mean_mae": 126.59790869527146,
+      "mean_wape_by_node": {
+        "SEN": 6.214583252928189
+      }
     },
     "naive_baseline": {
       "method": "solar_generation_mwh_lag_1h",
@@ -131,37 +149,55 @@
       "fold_metrics": [
         {
           "fold": 0,
-          "test_rows": 14615,
-          "wape": 32.00989191798772,
-          "mae": 9.447731098186795
+          "test_rows": 5590,
+          "wape": 20.880487308018125,
+          "mae": 409.9623255813954,
+          "wape_by_node": {
+            "SEN": 20.880487308018125
+          }
         },
         {
           "fold": 1,
-          "test_rows": 14615,
-          "wape": 26.509934275310798,
-          "mae": 10.460117003079027
+          "test_rows": 5590,
+          "wape": 22.397641893630897,
+          "mae": 380.07270125223613,
+          "wape_by_node": {
+            "SEN": 22.397641893630897
+          }
         },
         {
           "fold": 2,
-          "test_rows": 14615,
-          "wape": 27.136157382409664,
-          "mae": 11.256600752651385
+          "test_rows": 5590,
+          "wape": 22.65497392236367,
+          "mae": 446.25674418604655,
+          "wape_by_node": {
+            "SEN": 22.65497392236367
+          }
         },
         {
           "fold": 3,
-          "test_rows": 14615,
-          "wape": 32.18132780070771,
-          "mae": 9.722880602121108
+          "test_rows": 5590,
+          "wape": 21.3045604433182,
+          "mae": 494.5153667262969,
+          "wape_by_node": {
+            "SEN": 21.3045604433182
+          }
         },
         {
           "fold": 4,
-          "test_rows": 14615,
-          "wape": 26.611955929450133,
-          "mae": 12.820108108108109
+          "test_rows": 5590,
+          "wape": 22.92767453517161,
+          "mae": 519.9378890876565,
+          "wape_by_node": {
+            "SEN": 22.92767453517161
+          }
         }
       ],
-      "mean_wape": 28.88985346117321,
-      "mean_mae": 10.741487512829284
+      "mean_wape": 22.033067620500496,
+      "mean_mae": 450.1490053667263,
+      "mean_wape_by_node": {
+        "SEN": 22.033067620500496
+      }
     },
     "seasonal_naive_baseline": {
       "method": "solar_generation_mwh_lag_24h",
@@ -169,54 +205,72 @@
       "fold_metrics": [
         {
           "fold": 0,
-          "test_rows": 14600,
-          "wape": 14.478413990140101,
-          "mae": 4.249287671232877
+          "test_rows": 5467,
+          "wape": 9.681385733271288,
+          "mae": 190.94170477409915,
+          "wape_by_node": {
+            "SEN": 9.681385733271288
+          }
         },
         {
           "fold": 1,
-          "test_rows": 14600,
-          "wape": 8.77540809214629,
-          "mae": 3.481891095890411
+          "test_rows": 5467,
+          "wape": 13.036646468200189,
+          "mae": 220.74400951161513,
+          "wape_by_node": {
+            "SEN": 13.036646468200189
+          }
         },
         {
           "fold": 2,
-          "test_rows": 14600,
-          "wape": 6.460041697637929,
-          "mae": 2.6844191780821918
+          "test_rows": 5467,
+          "wape": 11.750400489803322,
+          "mae": 231.52602890067675,
+          "wape_by_node": {
+            "SEN": 11.750400489803322
+          }
         },
         {
           "fold": 3,
-          "test_rows": 14600,
-          "wape": 13.697786960765532,
-          "mae": 4.11395205479452
+          "test_rows": 5467,
+          "wape": 10.184585821074755,
+          "mae": 234.9108103164441,
+          "wape_by_node": {
+            "SEN": 10.184585821074755
+          }
         },
         {
           "fold": 4,
-          "test_rows": 14600,
-          "wape": 10.11967547670032,
-          "mae": 4.880085616438357
+          "test_rows": 5467,
+          "wape": 11.446474153054696,
+          "mae": 259.02015730748127,
+          "wape_by_node": {
+            "SEN": 11.446474153054696
+          }
         }
       ],
-      "mean_wape": 10.706265243478034,
-      "mean_mae": 3.8819271232876718
+      "mean_wape": 11.21989853308085,
+      "mean_mae": 227.42854216206328,
+      "mean_wape_by_node": {
+        "SEN": 11.21989853308085
+      }
     }
   },
   "wind_generation_mwh": {
     "tuning": {
       "best_params": {
         "n_estimators": 450,
-        "learning_rate": 0.022683193127282838,
-        "num_leaves": 37,
-        "max_depth": 8,
-        "min_child_samples": 38,
-        "feature_fraction": 0.7640881690357239,
-        "bagging_fraction": 0.8437003614945165,
-        "bagging_freq": 3,
-        "reg_alpha": 0.1437815876971168,
-        "reg_lambda": 0.09962740382633509
+        "learning_rate": 0.03386975311925968,
+        "num_leaves": 16,
+        "max_depth": 9,
+        "min_child_samples": 67,
+        "feature_fraction": 0.8478135772534396,
+        "bagging_fraction": 0.8293163910604916,
+        "bagging_freq": 1,
+        "reg_alpha": 0.019831523145504418,
+        "reg_lambda": 0.0038934579621894574
       },
-      "best_tuning_wape": 21.918532161156534,
+      "best_tuning_wape": 9.035362995617916,
       "n_trials": 20
     },
     "lightgbm": {
@@ -278,55 +332,73 @@
       "lgbm_params": {
         "verbosity": -1,
         "n_estimators": 450,
-        "learning_rate": 0.022683193127282838,
-        "num_leaves": 37,
-        "max_depth": 8,
-        "min_child_samples": 38,
-        "feature_fraction": 0.7640881690357239,
-        "bagging_fraction": 0.8437003614945165,
-        "bagging_freq": 3,
-        "reg_alpha": 0.1437815876971168,
-        "reg_lambda": 0.09962740382633509
+        "learning_rate": 0.03386975311925968,
+        "num_leaves": 16,
+        "max_depth": 9,
+        "min_child_samples": 67,
+        "feature_fraction": 0.8478135772534396,
+        "bagging_fraction": 0.8293163910604916,
+        "bagging_freq": 1,
+        "reg_alpha": 0.019831523145504418,
+        "reg_lambda": 0.0038934579621894574
       },
       "fold_metrics": [
         {
           "fold": 0,
-          "train_rows": 14480,
-          "test_rows": 14480,
-          "wape": 23.995535887089616,
-          "mae": 2.1677847178792127
+          "train_rows": 5213,
+          "test_rows": 5212,
+          "wape": 9.41229405857168,
+          "mae": 94.19594365312236,
+          "wape_by_node": {
+            "SEN": 9.41229405857168
+          }
         },
         {
           "fold": 1,
-          "train_rows": 28960,
-          "test_rows": 14480,
-          "wape": 20.975398569105998,
-          "mae": 2.031216457838346
+          "train_rows": 10425,
+          "test_rows": 5212,
+          "wape": 9.203241698372382,
+          "mae": 108.91752259556823,
+          "wape_by_node": {
+            "SEN": 9.203241698372382
+          }
         },
         {
           "fold": 2,
-          "train_rows": 43440,
-          "test_rows": 14480,
-          "wape": 20.36958887117245,
-          "mae": 1.85232741431021
+          "train_rows": 15637,
+          "test_rows": 5212,
+          "wape": 8.674457789726572,
+          "mae": 105.72119922680274,
+          "wape_by_node": {
+            "SEN": 8.674457789726572
+          }
         },
         {
           "fold": 3,
-          "train_rows": 57920,
-          "test_rows": 14480,
-          "wape": 25.02162266653099,
-          "mae": 2.532118056540763
+          "train_rows": 20849,
+          "test_rows": 5212,
+          "wape": 8.489446287116932,
+          "mae": 111.69450462070245,
+          "wape_by_node": {
+            "SEN": 8.489446287116932
+          }
         },
         {
           "fold": 4,
-          "train_rows": 72400,
-          "test_rows": 14480,
-          "wape": 21.646405295515894,
-          "mae": 2.2572448380513515
+          "train_rows": 26061,
+          "test_rows": 5212,
+          "wape": 9.454067962138737,
+          "mae": 134.2521891743731,
+          "wape_by_node": {
+            "SEN": 9.454067962138737
+          }
         }
       ],
-      "mean_wape": 22.40171025788299,
-      "mean_mae": 2.168138296923977
+      "mean_wape": 9.046701559185262,
+      "mean_mae": 110.95627185411377,
+      "mean_wape_by_node": {
+        "SEN": 9.046701559185262
+      }
     },
     "naive_baseline": {
       "method": "wind_generation_mwh_lag_1h",
@@ -334,37 +406,55 @@
       "fold_metrics": [
         {
           "fold": 0,
-          "test_rows": 14615,
-          "wape": 19.68998695621077,
-          "mae": 1.8271351351351353
+          "test_rows": 5590,
+          "wape": 12.04543425576915,
+          "mae": 121.55375670840787,
+          "wape_by_node": {
+            "SEN": 12.04543425576915
+          }
         },
         {
           "fold": 1,
-          "test_rows": 14615,
-          "wape": 23.549356854050394,
-          "mae": 2.250455011973999
+          "test_rows": 5590,
+          "wape": 11.599733224549547,
+          "mae": 137.48479427549194,
+          "wape_by_node": {
+            "SEN": 11.599733224549547
+          }
         },
         {
           "fold": 2,
-          "test_rows": 14615,
-          "wape": 23.652075574983673,
-          "mae": 2.1900595278823127
+          "test_rows": 5590,
+          "wape": 11.159803025870566,
+          "mae": 134.81334525939175,
+          "wape_by_node": {
+            "SEN": 11.159803025870566
+          }
         },
         {
           "fold": 3,
-          "test_rows": 14615,
-          "wape": 24.461141204687713,
-          "mae": 2.4670886075949365
+          "test_rows": 5590,
+          "wape": 12.653422726534133,
+          "mae": 167.235885509839,
+          "wape_by_node": {
+            "SEN": 12.653422726534133
+          }
         },
         {
           "fold": 4,
-          "test_rows": 14615,
-          "wape": 25.115616215976228,
-          "mae": 2.6049709202873754
+          "test_rows": 5590,
+          "wape": 11.528374843812756,
+          "mae": 162.92280858676207,
+          "wape_by_node": {
+            "SEN": 11.528374843812756
+          }
         }
       ],
-      "mean_wape": 23.293635361181757,
-      "mean_mae": 2.267941840574752
+      "mean_wape": 11.79735361530723,
+      "mean_mae": 144.8021180679785,
+      "mean_wape_by_node": {
+        "SEN": 11.79735361530723
+      }
     },
     "seasonal_naive_baseline": {
       "method": "wind_generation_mwh_lag_24h",
@@ -372,54 +462,72 @@
       "fold_metrics": [
         {
           "fold": 0,
-          "test_rows": 14600,
-          "wape": 89.13237858432721,
-          "mae": 8.26080410958904
+          "test_rows": 5467,
+          "wape": 34.11201193152538,
+          "mae": 343.52544357051397,
+          "wape_by_node": {
+            "SEN": 34.11201193152538
+          }
         },
         {
           "fold": 1,
-          "test_rows": 14600,
-          "wape": 80.28691257645698,
-          "mae": 7.714315753424658
+          "test_rows": 5467,
+          "wape": 35.115666973965126,
+          "mae": 419.10252423632704,
+          "wape_by_node": {
+            "SEN": 35.115666973965126
+          }
         },
         {
           "fold": 2,
-          "test_rows": 14600,
-          "wape": 68.68459724680037,
-          "mae": 6.333442465753425
+          "test_rows": 5467,
+          "wape": 37.038271191131344,
+          "mae": 445.4418693982075,
+          "wape_by_node": {
+            "SEN": 37.038271191131344
+          }
         },
         {
           "fold": 3,
-          "test_rows": 14600,
-          "wape": 98.04550577180197,
-          "mae": 9.898757534246576
+          "test_rows": 5467,
+          "wape": 31.867109235048435,
+          "mae": 424.8243094933236,
+          "wape_by_node": {
+            "SEN": 31.867109235048435
+          }
         },
         {
           "fold": 4,
-          "test_rows": 14600,
-          "wape": 77.53600820975241,
-          "mae": 8.050232876712329
+          "test_rows": 5467,
+          "wape": 34.79907529151545,
+          "mae": 492.4010974940552,
+          "wape_by_node": {
+            "SEN": 34.79907529151545
+          }
         }
       ],
-      "mean_wape": 82.73708047782779,
-      "mean_mae": 8.051510547945206
+      "mean_wape": 34.586426924637145,
+      "mean_mae": 425.0590488384854,
+      "mean_wape_by_node": {
+        "SEN": 34.586426924637145
+      }
     }
   },
   "demand_mwh": {
     "tuning": {
       "best_params": {
         "n_estimators": 350,
-        "learning_rate": 0.08560709320456174,
-        "num_leaves": 83,
+        "learning_rate": 0.03486835198204207,
+        "num_leaves": 76,
         "max_depth": 7,
-        "min_child_samples": 79,
-        "feature_fraction": 0.7897130730662163,
-        "bagging_fraction": 0.8239029370685161,
+        "min_child_samples": 100,
+        "feature_fraction": 0.9992336613307372,
+        "bagging_fraction": 0.8184200828646881,
         "bagging_freq": 3,
-        "reg_alpha": 0.00853790367629646,
-        "reg_lambda": 7.777323111889393
+        "reg_alpha": 0.005605278681376578,
+        "reg_lambda": 0.0010152938399114748
       },
-      "best_tuning_wape": 2.465344930546513,
+      "best_tuning_wape": 1.2212740707726573,
       "n_trials": 20
     },
     "lightgbm": {
@@ -481,55 +589,73 @@
       "lgbm_params": {
         "verbosity": -1,
         "n_estimators": 350,
-        "learning_rate": 0.08560709320456174,
-        "num_leaves": 83,
+        "learning_rate": 0.03486835198204207,
+        "num_leaves": 76,
         "max_depth": 7,
-        "min_child_samples": 79,
-        "feature_fraction": 0.7897130730662163,
-        "bagging_fraction": 0.8239029370685161,
+        "min_child_samples": 100,
+        "feature_fraction": 0.9992336613307372,
+        "bagging_fraction": 0.8184200828646881,
         "bagging_freq": 3,
-        "reg_alpha": 0.00853790367629646,
-        "reg_lambda": 7.777323111889393
+        "reg_alpha": 0.005605278681376578,
+        "reg_lambda": 0.0010152938399114748
       },
       "fold_metrics": [
         {
           "fold": 0,
-          "train_rows": 14480,
-          "test_rows": 14480,
-          "wape": 3.0529078676895067,
-          "mae": 5.157676310523323
+          "train_rows": 5213,
+          "test_rows": 5212,
+          "wape": 1.078880347466354,
+          "mae": 101.0125720674138,
+          "wape_by_node": {
+            "SEN": 1.078880347466354
+          }
         },
         {
           "fold": 1,
-          "train_rows": 28960,
-          "test_rows": 14480,
-          "wape": 2.5856144858974073,
-          "mae": 4.183166930544831
+          "train_rows": 10425,
+          "test_rows": 5212,
+          "wape": 0.9610277059539228,
+          "mae": 90.28735427116376,
+          "wape_by_node": {
+            "SEN": 0.9610277059539228
+          }
         },
         {
           "fold": 2,
-          "train_rows": 43440,
-          "test_rows": 14480,
-          "wape": 2.3511414998535827,
-          "mae": 3.88881941096071
+          "train_rows": 15637,
+          "test_rows": 5212,
+          "wape": 1.0509414725631392,
+          "mae": 102.76477822980523,
+          "wape_by_node": {
+            "SEN": 1.0509414725631392
+          }
         },
         {
           "fold": 3,
-          "train_rows": 57920,
-          "test_rows": 14480,
-          "wape": 2.3201368955210477,
-          "mae": 3.8949145754402985
+          "train_rows": 20849,
+          "test_rows": 5212,
+          "wape": 1.354928927976123,
+          "mae": 130.18513185785028,
+          "wape_by_node": {
+            "SEN": 1.354928927976123
+          }
         },
         {
           "fold": 4,
-          "train_rows": 72400,
-          "test_rows": 14480,
-          "wape": 2.3798191561506825,
-          "mae": 3.9283918709172405
+          "train_rows": 26061,
+          "test_rows": 5212,
+          "wape": 1.5746162504772725,
+          "mae": 156.23602134113648,
+          "wape_by_node": {
+            "SEN": 1.5746162504772725
+          }
         }
       ],
-      "mean_wape": 2.5379239810224457,
-      "mean_mae": 4.210593819677281
+      "mean_wape": 1.2040789408873622,
+      "mean_mae": 116.09717155347391,
+      "mean_wape_by_node": {
+        "SEN": 1.2040789408873622
+      }
     },
     "naive_baseline": {
       "method": "demand_mwh_lag_1h",
@@ -537,37 +663,55 @@
       "fold_metrics": [
         {
           "fold": 0,
-          "test_rows": 14615,
-          "wape": 5.0295937257163885,
-          "mae": 8.511987683886417
+          "test_rows": 5590,
+          "wape": 2.3053677594111153,
+          "mae": 215.38279069767447,
+          "wape_by_node": {
+            "SEN": 2.3053677594111153
+          }
         },
         {
           "fold": 1,
-          "test_rows": 14615,
-          "wape": 4.953892105986761,
-          "mae": 8.00527745466986
+          "test_rows": 5590,
+          "wape": 2.354251896647954,
+          "mae": 221.01375670840787,
+          "wape_by_node": {
+            "SEN": 2.354251896647954
+          }
         },
         {
           "fold": 2,
-          "test_rows": 14615,
-          "wape": 4.994613040409445,
-          "mae": 8.272216900444748
+          "test_rows": 5590,
+          "wape": 2.276044660423894,
+          "mae": 221.82005366726298,
+          "wape_by_node": {
+            "SEN": 2.276044660423894
+          }
         },
         {
           "fold": 3,
-          "test_rows": 14615,
-          "wape": 5.03219442030079,
-          "mae": 8.438738966814917
+          "test_rows": 5590,
+          "wape": 2.631832579307365,
+          "mae": 253.43538461538463,
+          "wape_by_node": {
+            "SEN": 2.631832579307365
+          }
         },
         {
           "fold": 4,
-          "test_rows": 14615,
-          "wape": 4.897871920817706,
-          "mae": 8.085895313034554
+          "test_rows": 5590,
+          "wape": 2.941582767282405,
+          "mae": 291.51937388193204,
+          "wape_by_node": {
+            "SEN": 2.941582767282405
+          }
         }
       ],
-      "mean_wape": 4.981633042646218,
-      "mean_mae": 8.262823263770098
+      "mean_wape": 2.5018159326145466,
+      "mean_mae": 240.63427191413243,
+      "mean_wape_by_node": {
+        "SEN": 2.5018159326145466
+      }
     },
     "seasonal_naive_baseline": {
       "method": "demand_mwh_lag_24h",
@@ -575,54 +719,72 @@
       "fold_metrics": [
         {
           "fold": 0,
-          "test_rows": 14600,
-          "wape": 6.0284853756607815,
-          "mae": 10.193153424657535
+          "test_rows": 5467,
+          "wape": 4.415108385194839,
+          "mae": 413.35866105725256,
+          "wape_by_node": {
+            "SEN": 4.415108385194839
+          }
         },
         {
           "fold": 1,
-          "test_rows": 14600,
-          "wape": 5.572493102522962,
-          "mae": 9.01507808219178
+          "test_rows": 5467,
+          "wape": 4.468366682151234,
+          "mae": 419.3021766965429,
+          "wape_by_node": {
+            "SEN": 4.468366682151234
+          }
         },
         {
           "fold": 2,
-          "test_rows": 14600,
-          "wape": 5.553147639065698,
-          "mae": 9.195595205479453
+          "test_rows": 5467,
+          "wape": 4.47927675601061,
+          "mae": 437.0640021949881,
+          "wape_by_node": {
+            "SEN": 4.47927675601061
+          }
         },
         {
           "fold": 3,
-          "test_rows": 14600,
-          "wape": 5.682248062175114,
-          "mae": 9.526821917808219
+          "test_rows": 5467,
+          "wape": 4.624053499692177,
+          "mae": 444.7980428022681,
+          "wape_by_node": {
+            "SEN": 4.624053499692177
+          }
         },
         {
           "fold": 4,
-          "test_rows": 14600,
-          "wape": 5.504342249108067,
-          "mae": 9.087406164383562
+          "test_rows": 5467,
+          "wape": 4.2265915377292735,
+          "mae": 418.91435888055605,
+          "wape_by_node": {
+            "SEN": 4.2265915377292735
+          }
         }
       ],
-      "mean_wape": 5.668143285706526,
-      "mean_mae": 9.40361095890411
+      "mean_wape": 4.442679372155626,
+      "mean_mae": 426.68744832632154,
+      "mean_wape_by_node": {
+        "SEN": 4.442679372155626
+      }
     }
   },
   "marginal_cost_usd_mwh": {
     "tuning": {
       "best_params": {
-        "n_estimators": 450,
-        "learning_rate": 0.016666983286066417,
-        "num_leaves": 22,
+        "n_estimators": 600,
+        "learning_rate": 0.013358718838644357,
+        "num_leaves": 87,
         "max_depth": 10,
-        "min_child_samples": 97,
-        "feature_fraction": 0.9233589392465844,
-        "bagging_fraction": 0.7218455076693483,
+        "min_child_samples": 90,
+        "feature_fraction": 0.7228200723885493,
+        "bagging_fraction": 0.7504674894264103,
         "bagging_freq": 1,
-        "reg_alpha": 0.5456725485601477,
-        "reg_lambda": 0.057624872164786026
+        "reg_alpha": 0.8251706215783697,
+        "reg_lambda": 0.1288698309991853
       },
-      "best_tuning_wape": 7.915167576508407,
+      "best_tuning_wape": 18.58835278758286,
       "n_trials": 20
     },
     "lightgbm": {
@@ -683,56 +845,104 @@
       "n_splits": 5,
       "lgbm_params": {
         "verbosity": -1,
-        "n_estimators": 450,
-        "learning_rate": 0.016666983286066417,
-        "num_leaves": 22,
+        "n_estimators": 600,
+        "learning_rate": 0.013358718838644357,
+        "num_leaves": 87,
         "max_depth": 10,
-        "min_child_samples": 97,
-        "feature_fraction": 0.9233589392465844,
-        "bagging_fraction": 0.7218455076693483,
+        "min_child_samples": 90,
+        "feature_fraction": 0.7228200723885493,
+        "bagging_fraction": 0.7504674894264103,
         "bagging_freq": 1,
-        "reg_alpha": 0.5456725485601477,
-        "reg_lambda": 0.057624872164786026
+        "reg_alpha": 0.8251706215783697,
+        "reg_lambda": 0.1288698309991853
       },
       "fold_metrics": [
         {
           "fold": 0,
-          "train_rows": 14480,
-          "test_rows": 14480,
-          "wape": 14.14360321928011,
-          "mae": 8.86863983324136
+          "train_rows": 31290,
+          "test_rows": 31272,
+          "wape": 17.544137556566405,
+          "mae": 19.352318382676323,
+          "wape_by_node": {
+            "Cardones_220kV": 17.62697465143755,
+            "Charrua_220kV": 18.01922468929899,
+            "Crucero_220kV": 17.81534752893316,
+            "Pan_de_Azucar_220kV": 17.74113529531883,
+            "Puerto_Montt_220kV": 17.046484905417334,
+            "Quillota_220kV": 17.325865147455396
+          }
         },
         {
           "fold": 1,
-          "train_rows": 28960,
-          "test_rows": 14480,
-          "wape": 6.4990471521495925,
-          "mae": 4.1077012087134355
+          "train_rows": 62562,
+          "test_rows": 30552,
+          "wape": 19.09575752302237,
+          "mae": 11.990467033261567,
+          "wape_by_node": {
+            "Cardones_220kV": 16.513204904803196,
+            "Charrua_220kV": 19.22591521947193,
+            "Crucero_220kV": 15.910326026846183,
+            "Pan_de_Azucar_220kV": 18.40496102732283,
+            "Puerto_Montt_220kV": 27.21714930404303,
+            "Quillota_220kV": 17.372162276728762
+          }
         },
         {
           "fold": 2,
-          "train_rows": 43440,
-          "test_rows": 14480,
-          "wape": 8.216663122750536,
-          "mae": 6.056385606752441
+          "train_rows": 93114,
+          "test_rows": 30984,
+          "wape": 18.461582028949707,
+          "mae": 10.384221729062808,
+          "wape_by_node": {
+            "Cardones_220kV": 16.465196341572167,
+            "Charrua_220kV": 17.868224425775296,
+            "Crucero_220kV": 16.12341225554683,
+            "Pan_de_Azucar_220kV": 16.671202289702475,
+            "Puerto_Montt_220kV": 24.66755203912178,
+            "Quillota_220kV": 17.001306109010596
+          }
         },
         {
           "fold": 3,
-          "train_rows": 57920,
-          "test_rows": 14480,
-          "wape": 7.690455526031517,
-          "mae": 5.87263482946372
+          "train_rows": 124098,
+          "test_rows": 31032,
+          "wape": 19.634748003267827,
+          "mae": 10.350386481356923,
+          "wape_by_node": {
+            "Cardones_220kV": 17.140344199777545,
+            "Charrua_220kV": 20.811389828729222,
+            "Crucero_220kV": 16.528721628598664,
+            "Pan_de_Azucar_220kV": 18.077639819109493,
+            "Puerto_Montt_220kV": 23.7795171952183,
+            "Quillota_220kV": 18.797250981519937
+          }
         },
         {
           "fold": 4,
-          "train_rows": 72400,
-          "test_rows": 14480,
-          "wape": 7.324100448328337,
-          "mae": 3.7296773663507734
+          "train_rows": 155130,
+          "test_rows": 31272,
+          "wape": 19.44299854482136,
+          "mae": 10.500961759995988,
+          "wape_by_node": {
+            "Cardones_220kV": 19.610248052307817,
+            "Charrua_220kV": 17.75696910916918,
+            "Crucero_220kV": 19.863634402496704,
+            "Pan_de_Azucar_220kV": 19.779393837160825,
+            "Puerto_Montt_220kV": 21.847160218523616,
+            "Quillota_220kV": 17.688000673946778
+          }
         }
       ],
-      "mean_wape": 8.77477389370802,
-      "mean_mae": 5.727007768904347
+      "mean_wape": 18.835844731325533,
+      "mean_mae": 12.51567107727072,
+      "mean_wape_by_node": {
+        "Cardones_220kV": 17.471193629979656,
+        "Charrua_220kV": 18.736344654488924,
+        "Crucero_220kV": 17.248288368484307,
+        "Pan_de_Azucar_220kV": 18.13486645372289,
+        "Puerto_Montt_220kV": 22.911572732464812,
+        "Quillota_220kV": 17.636917037732296
+      }
     },
     "naive_baseline": {
       "method": "marginal_cost_usd_mwh_lag_1h",
@@ -740,37 +950,85 @@
       "fold_metrics": [
         {
           "fold": 0,
-          "test_rows": 14615,
-          "wape": 10.685747194369268,
-          "mae": 6.759336982552172
+          "test_rows": 33684,
+          "wape": 19.99400256974676,
+          "mae": 21.61937062106638,
+          "wape_by_node": {
+            "Cardones_220kV": 22.361366082990532,
+            "Charrua_220kV": 20.490063755349944,
+            "Crucero_220kV": 22.538696611944033,
+            "Pan_de_Azucar_220kV": 22.254487754965886,
+            "Puerto_Montt_220kV": 14.973975865249061,
+            "Quillota_220kV": 20.297820642917465
+          }
         },
         {
           "fold": 1,
-          "test_rows": 14615,
-          "wape": 10.683963425732092,
-          "mae": 6.799523092712966
+          "test_rows": 33386,
+          "wape": 21.59480960715439,
+          "mae": 13.278718025519678,
+          "wape_by_node": {
+            "Cardones_220kV": 21.940137275250713,
+            "Charrua_220kV": 20.12299741629552,
+            "Crucero_220kV": 22.12074122015623,
+            "Pan_de_Azucar_220kV": 22.284149785443255,
+            "Puerto_Montt_220kV": 23.71242146039427,
+            "Quillota_220kV": 19.57174717975681
+          }
         },
         {
           "fold": 2,
-          "test_rows": 14615,
-          "wape": 11.20475232323931,
-          "mae": 8.21669312350325
+          "test_rows": 33584,
+          "wape": 21.521469951971895,
+          "mae": 12.018553775607431,
+          "wape_by_node": {
+            "Cardones_220kV": 22.140923233571367,
+            "Charrua_220kV": 20.318154689761293,
+            "Crucero_220kV": 22.077302835795916,
+            "Pan_de_Azucar_220kV": 21.920534611653288,
+            "Puerto_Montt_220kV": 21.94137394743513,
+            "Quillota_220kV": 20.668103302458064
+          }
         },
         {
           "fold": 3,
-          "test_rows": 14615,
-          "wape": 10.73680285967564,
-          "mae": 8.193849469722888
+          "test_rows": 33538,
+          "wape": 23.698060688463578,
+          "mae": 12.96712594668734,
+          "wape_by_node": {
+            "Cardones_220kV": 25.782272739968576,
+            "Charrua_220kV": 24.47233304187716,
+            "Crucero_220kV": 24.959283826236977,
+            "Pan_de_Azucar_220kV": 24.234316475613856,
+            "Puerto_Montt_220kV": 21.13715504609924,
+            "Quillota_220kV": 23.33557180149078
+          }
         },
         {
           "fold": 4,
-          "test_rows": 14615,
-          "wape": 12.127403576828996,
-          "mae": 6.180528224426959
+          "test_rows": 33684,
+          "wape": 22.545756268197575,
+          "mae": 12.026283695523098,
+          "wape_by_node": {
+            "Cardones_220kV": 24.847548003250772,
+            "Charrua_220kV": 19.692220513759068,
+            "Crucero_220kV": 25.17899843863462,
+            "Pan_de_Azucar_220kV": 24.803026319837183,
+            "Puerto_Montt_220kV": 22.289761576669388,
+            "Quillota_220kV": 19.766062767601348
+          }
         }
       ],
-      "mean_wape": 11.087733875969061,
-      "mean_mae": 7.229986178583647
+      "mean_wape": 21.870819817106838,
+      "mean_mae": 14.382010412880785,
+      "mean_wape_by_node": {
+        "Cardones_220kV": 23.414449467006392,
+        "Charrua_220kV": 21.0191538834086,
+        "Crucero_220kV": 23.375004586553555,
+        "Pan_de_Azucar_220kV": 23.099302989502693,
+        "Puerto_Montt_220kV": 20.81093757916942,
+        "Quillota_220kV": 20.72786113884489
+      }
     },
     "seasonal_naive_baseline": {
       "method": "marginal_cost_usd_mwh_lag_24h",
@@ -778,37 +1036,85 @@
       "fold_metrics": [
         {
           "fold": 0,
-          "test_rows": 14600,
-          "wape": 11.766253370510876,
-          "mae": 7.435882876712329
+          "test_rows": 32928,
+          "wape": 33.9007622681563,
+          "mae": 36.98875334062196,
+          "wape_by_node": {
+            "Cardones_220kV": 29.07187501587925,
+            "Charrua_220kV": 33.88967194460639,
+            "Crucero_220kV": 28.210698006472406,
+            "Pan_de_Azucar_220kV": 30.559979651087627,
+            "Puerto_Montt_220kV": 43.094067730993935,
+            "Quillota_220kV": 33.10532351614756
+          }
         },
         {
           "fold": 1,
-          "test_rows": 14600,
-          "wape": 11.235583757088266,
-          "mae": 7.144238356164384
+          "test_rows": 32400,
+          "wape": 36.802820499633306,
+          "mae": 23.03578611111111,
+          "wape_by_node": {
+            "Cardones_220kV": 27.301228291592807,
+            "Charrua_220kV": 37.05292877798826,
+            "Crucero_220kV": 27.085131687663978,
+            "Pan_de_Azucar_220kV": 33.531693330103764,
+            "Puerto_Montt_220kV": 63.40685854166076,
+            "Quillota_220kV": 33.06506486297744
+          }
         },
         {
           "fold": 2,
-          "test_rows": 14600,
-          "wape": 11.007921282976449,
-          "mae": 8.074252054794522
+          "test_rows": 32736,
+          "wape": 37.60321000276915,
+          "mae": 20.987071725317694,
+          "wape_by_node": {
+            "Cardones_220kV": 28.472049802447362,
+            "Charrua_220kV": 36.638658358290826,
+            "Crucero_220kV": 27.132843020605762,
+            "Pan_de_Azucar_220kV": 29.44602069497495,
+            "Puerto_Montt_220kV": 62.14364637605888,
+            "Quillota_220kV": 34.071714004429595
+          }
         },
         {
           "fold": 3,
-          "test_rows": 14600,
-          "wape": 12.401615868963749,
-          "mae": 9.468858219178081
+          "test_rows": 32736,
+          "wape": 44.41605890877438,
+          "mae": 23.98858901515152,
+          "wape_by_node": {
+            "Cardones_220kV": 33.67382443905866,
+            "Charrua_220kV": 46.17002539574423,
+            "Crucero_220kV": 34.39451072862755,
+            "Pan_de_Azucar_220kV": 39.06272495477528,
+            "Puerto_Montt_220kV": 60.84520928894707,
+            "Quillota_220kV": 41.65820111462581
+          }
         },
         {
           "fold": 4,
-          "test_rows": 14600,
-          "wape": 12.13186273086383,
-          "mae": 6.181087671232877
+          "test_rows": 32928,
+          "wape": 42.10327101290708,
+          "mae": 22.544942298347905,
+          "wape_by_node": {
+            "Cardones_220kV": 37.9768739938746,
+            "Charrua_220kV": 38.31154527942152,
+            "Crucero_220kV": 37.705023672706375,
+            "Pan_de_Azucar_220kV": 38.68713640259159,
+            "Puerto_Montt_220kV": 57.54520555028776,
+            "Quillota_220kV": 38.26809821378347
+          }
         }
       ],
-      "mean_wape": 11.708647402080635,
-      "mean_mae": 7.660863835616439
+      "mean_wape": 38.96522453844804,
+      "mean_mae": 25.509028498110037,
+      "mean_wape_by_node": {
+        "Cardones_220kV": 31.299170308570535,
+        "Charrua_220kV": 38.41256595121025,
+        "Crucero_220kV": 30.90564142321522,
+        "Pan_de_Azucar_220kV": 34.25751100670664,
+        "Puerto_Montt_220kV": 57.40699749758968,
+        "Quillota_220kV": 36.03368034239277
+      }
     }
   }
 }

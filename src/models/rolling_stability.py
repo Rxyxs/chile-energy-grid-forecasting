@@ -23,6 +23,7 @@ from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_absolute_error
 from xgboost import XGBRegressor
 
+from src.data.real_panel import rows_for_target
 from src.models.train_forecaster import CATEGORICAL_FEATURES, TARGET_COLUMNS, get_feature_columns, load_features
 from src.models.validation import get_rolling_origin_folds, wape
 
@@ -77,7 +78,7 @@ def evaluate_temporal_stability(
     al período de entrenamiento/evaluación.
     """
     feature_columns = get_feature_columns(df)
-    clean_df = df.dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
+    clean_df = rows_for_target(df, target_column).dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
 
     train_window_hours = train_window_days * 24
     test_window_hours = test_window_days * 24

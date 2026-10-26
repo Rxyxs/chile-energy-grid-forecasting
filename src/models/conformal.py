@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
 
+from src.data.real_panel import rows_for_target
 from src.models.train_forecaster import (
     CATEGORICAL_FEATURES,
     DEFAULT_LGBM_PARAMS,
@@ -133,7 +134,7 @@ def train_conformal_intervals(
     """
     feature_columns = get_feature_columns(df)
     params = lgbm_params or DEFAULT_LGBM_PARAMS
-    df = df.dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
+    df = rows_for_target(df, target_column).dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
 
     fold_metrics = []
     last_lower_model = last_upper_model = None
