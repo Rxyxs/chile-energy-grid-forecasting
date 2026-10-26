@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>⚡ Chile Energy Grid Forecasting</title>
+<meta name="description" content="Hourly forecasting of Chile&#x27;s National Electric System (SEN) on four years of real hourly data (2022-2025): marginal cost at 6 real 220 kV buses from Antofagasta to Puerto Montt, a">
+<meta name="generator" content="Rxyxs/tools/make_pages.py">
+<style>
+  :root { --bg:#FBFAF8; --surface:#FFF; --ink:#23201D; --muted:#6B645D; --line:#E3DED7; --accent:#B5553D; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg:#171614; --surface:#201E1B; --ink:#EDE9E3; --muted:#A9A29A; --line:#322E2A; --accent:#D9765C; } }
+  :root[data-theme="dark"] { --bg:#171614; --surface:#201E1B; --ink:#EDE9E3; --muted:#A9A29A; --line:#322E2A; --accent:#D9765C; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.68 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:900px; margin:0 auto; padding:0 16px 88px; }
+  header { padding:60px 0 32px; border-bottom:1px solid var(--line); margin-bottom:36px; }
+  h1 { font-size:clamp(1.7rem,5vw,2.4rem); line-height:1.16; margin:0 0 18px; letter-spacing:-.02em; }
+  .lede { font-size:clamp(1rem,2.3vw,1.1rem); color:var(--muted); margin:0 0 22px; max-width:62ch; }
+  .lede strong { color:var(--ink); }
+  .links a { display:inline-block; margin:0 9px 9px 0; padding:9px 15px; border:1px solid var(--line);
+    border-radius:7px; text-decoration:none; color:var(--ink); background:var(--surface); font-size:.9rem;
+    transition:border-color .15s; }
+  .links a:hover { border-color:var(--accent); }
+  h2 { font-size:1.3rem; margin:48px 0 8px; padding-top:12px; border-top:1px solid var(--line); letter-spacing:-.01em; }
+  figure { margin:22px 0; }
+  figure img { width:100%; height:auto; display:block; border:1px solid var(--line); border-radius:9px; background:#fff; }
+  figcaption { font-size:.85rem; color:var(--muted); margin-top:9px; max-width:70ch; }
+  p { margin:0 0 16px; max-width:70ch; }
+  code { background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:1px 5px; font-size:.86em;
+    font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+  footer { margin-top:60px; padding-top:22px; border-top:1px solid var(--line); font-size:.86rem; color:var(--muted); }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>⚡ Chile Energy Grid Forecasting</h1>
+<p class="lede">Hourly forecasting of Chile&#x27;s National Electric System (SEN) on <strong>four years of real hourly data (2022-2025)</strong>: marginal cost at 6 real 220 kV buses from Antofagasta to Puerto Montt, and system-wide solar generation, wind generation and demand. The hourly series are not downloaded from an API (the grid coordinator&#x27;s requires an institutional account): they are read out of the vector charts in the coordinator&#x27;s public daily PDF reports, calibrated day by day against the numbers each report prints, and validated against two independent official monthly series. On top of that: LightGBM tuned with Optuna and validated walk-forward against naive baselines, real weather features (ERA5), Rolling-Origin CV against XGBoost, a PyTorch MLP, conformal prediction intervals, a recursive multi-step forecaster and a Streamlit dashboard.</p>
+<div class="links">
+<a href="https://github.com/Rxyxs/chile-energy-grid-forecasting">Code and method</a>
+<a href="https://github.com/Rxyxs/chile-energy-grid-forecasting#readme">Full README</a>
+</div></header>
+<p>This page shows the project's results. The methodology, the design decisions and the limitations are documented in the repository's README.</p>
+<h2>2. Data: four years of real hourly data, read out of PDF charts</h2>
+<figure>
+<img src="figures/real_reconstruction_check.png" alt="Reconstruction vs. official monthly series" loading="lazy">
+<figcaption>- <strong>Monthly energy vs. the official SEN generation (datos.gob.cl):</strong> total within 3% (usually 1-2%), wind within 5%. Solar from the charts is consistently 2-8% <em>below</em> the official series: the two sources do not count exactly the same plants. - <strong>Crucero&#x27;s monthly marginal cost vs. the CNE monthly reports:</strong> from June 2022 to June 2024 the mean of the reconstructed hours matches the CNE figure to within about 0.5 USD/MWh. <strong>From July 2024 the two publications diverge</strong>: the daily report is 9-30 USD/MWh lower than the CNE figure every month.</figcaption>
+</figure>
+<figure>
+<img src="figures/real_price_profile_by_bar.png" alt="Real hourly marginal cost by bus" loading="lazy">
+<figcaption><strong>The price splits by geography at noon.</strong> Between 10:00 and 16:00, Crucero, Cardones and Pan de Azúcar sit below 1 USD/MWh in 70-74% of hours (solar surplus in the north), Quillota and Charrúa in 53-56%, and Puerto Montt in only 29%. The system&#x27;s residual demand correlates 0.64-0.73 with the price at five buses and 0.19 at Puerto Montt (<code>notebooks/01_eda_seasonality_analysis.ipynb</code>): one system-wide driver does not price a bus that transmission isolates.</figcaption>
+</figure>
+<h2>5.1 Walk-forward validation: LightGBM (Optuna-tuned) vs. baselines</h2>
+<figure>
+<img src="figures/price_wape_by_bus.png" alt="Price WAPE by bus: model vs. persistence" loading="lazy">
+<figcaption><strong>The model&#x27;s edge shrinks from north to south and turns negative at Puerto Montt.</strong> In the north, the noon price collapse is predictable from the system&#x27;s solar and the hour of day, which persistence cannot see coming. Puerto Montt&#x27;s price is barely related to the system&#x27;s residual demand (correlation 0.19, §2), so the features that carry the other five buses do not help it, and one model shared across buses applies the northern pattern where it does not hold. A per-bus model or bus-specific drivers (regional hydro, transmission limits) would be the next step there.</figcaption>
+</figure>
+<h2>5.4 A third modeling family: PyTorch MLP vs. LightGBM/XGBoost, and ReLU vs. GELU vs. Swish</h2>
+<p>A dense MLP with a custom Huber loss, trained on the same folds and features as the tree models. On the old simulated panel it was the best model on price; on real prices every activation lands at 21.7-22.0% WAPE, above default LightGBM (19.9%) and level with persistence (21.9%). All 15 runs reach their best validation loss between epochs 8 and 21: the network starts overfitting real prices almost immediately.</p>
+<figure>
+<img src="figures/torch_loss_curve_marginal_cost_usd_mwh_animated.gif" alt="MLP PyTorch loss curve, animated" loading="lazy">
+</figure>
+<figure>
+<img src="figures/torch_loss_curve_marginal_cost_usd_mwh.png" alt="MLP PyTorch loss curve" loading="lazy">
+</figure>
+<footer>
+Pablo Reyes · <a href="https://github.com/Rxyxs/chile-energy-grid-forecasting">github.com/Rxyxs/chile-energy-grid-forecasting</a> · MIT<br><br>
+Every figure on this page is produced by the repository's pipeline. For the full method and its limitations, see the README.
+</footer>
+</div></body></html>

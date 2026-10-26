@@ -130,6 +130,8 @@ All numbers come from `python -m src.models.train_forecaster` end to end (seed 4
 | Charrúa | **18.74%** | 21.02% | 38.41% | −11% |
 | Puerto Montt | 22.91% | **20.81%** | 57.41% | **+10%** |
 
+![Price WAPE by bus: model vs. persistence](data/processed/price_wape_by_bus.png)
+
 **The model's edge shrinks from north to south and turns negative at Puerto Montt.** In the north, the noon price collapse is predictable from the system's solar and the hour of day, which persistence cannot see coming. Puerto Montt's price is barely related to the system's residual demand (correlation 0.19, §2), so the features that carry the other five buses do not help it, and one model shared across buses applies the northern pattern where it does not hold. A per-bus model or bus-specific drivers (regional hydro, transmission limits) would be the next step there.
 
 **What changed against the simulated panel.** The previous version of this project forecast price at 8.77% WAPE on a panel whose hourly prices were simulated around a real monthly level. On real hourly prices the same pipeline lands at 18.84%, and its margin over persistence falls from 21% to 14%. Real prices are zero-inflated (the north at noon), regime-switching (a 2022 that averaged about 100 USD/MWh, a 2024 below 50 at five of the six buses) and geographically split; the simulator had none of that.
