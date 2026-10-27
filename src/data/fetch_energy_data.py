@@ -208,7 +208,6 @@ def _generate_node_series(node: str, params: dict, timestamps: pd.DatetimeIndex,
     # --- Meteorología: las variables físicas de las que la generación renovable
     # (y, en menor medida, la demanda) realmente dependen -- se calculan
     # primero, y solar/eólica/demanda se derivan de ellas, no al revés. ---
-    seasonal = _seasonal_factor(day_of_year)
     shape = _solar_shape(hour, day_of_year)
     unique_dates = date_only.unique().sort_values()
     clear_sky_by_day = _clear_sky_daily_factor(len(unique_dates), rng)
