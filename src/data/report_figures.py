@@ -104,28 +104,34 @@ def plot_price_profile_by_bar() -> None:
 
 
 def plot_price_wape_by_bus() -> None:
-    """WAPE walk-forward del precio por barra: LightGBM vs. persistencia de 1 hora
-    (requiere haber corrido ``train_forecaster``)."""
+    """WAPE walk-forward del precio por barra: persistencia de 1 hora, LightGBM y
+    LightGBM mezclado con la persistencia (requiere haber corrido ``train_forecaster``)."""
     path = OUT_DIR / "forecaster_metrics.json"
     if not path.exists():
         return
     m = json.loads(path.read_text(encoding="utf-8"))[PRICE_TARGET]
     nodes = [n for n in BAR_NODES.values() if n in m["lightgbm"]["mean_wape_by_node"]]
-    lgb = [m["lightgbm"]["mean_wape_by_node"][n] for n in nodes]
-    naive = [m["naive_baseline"]["mean_wape_by_node"][n] for n in nodes]
+    series = [("Naive (value 1 hour ago)", "#9aa0a6", m["naive_baseline"]["mean_wape_by_node"]),
+              ("LightGBM (Optuna-tuned)", "#2a78d6", m["lightgbm"]["mean_wape_by_node"])]
+    if "blend_with_persistence" in m:
+        series.append(("LightGBM blended with persistence", "#1b6e3a", m["blend_with_persistence"]["mean_wape_by_node"]))
     labels = [n.replace("_220kV", "").replace("_", " ") for n in nodes]
-    x = range(len(nodes))
-    fig, ax = plt.subplots(figsize=(9, 4.4))
-    ax.bar([i - 0.2 for i in x], naive, width=0.4, color="#9aa0a6", label="Naive (value 1 hour ago)")
-    ax.bar([i + 0.2 for i in x], lgb, width=0.4, color="#2a78d6", label="LightGBM (Optuna-tuned)")
-    for i, (a, b) in enumerate(zip(naive, lgb)):
-        ax.text(i + 0.2, b + 0.4, f"{(b / a - 1) * 100:+.0f}%", ha="center", fontsize=9,
-                color="#d62728" if b > a else "#1b6e3a")
-    ax.set_xticks(list(x)); ax.set_xticklabels(labels)
+    width = 0.8 / len(series)
+    fig, ax = plt.subplots(figsize=(10, 4.6))
+    for k, (name, color, vals) in enumerate(series):
+        xs = [i + (k - (len(series) - 1) / 2) * width for i in range(len(nodes))]
+        ax.bar(xs, [vals[n] for n in nodes], width=width, color=color, label=name)
+    naive = m["naive_baseline"]["mean_wape_by_node"]
+    best = series[-1][2]
+    for i, n in enumerate(nodes):
+        x = i + (len(series) - 1) / 2 * width
+        ax.text(x, best[n] + 0.4, f"{(best[n] / naive[n] - 1) * 100:+.0f}%", ha="center", fontsize=9,
+                color="#d62728" if best[n] > naive[n] else "#1b6e3a")
+    ax.set_xticks(range(len(nodes))); ax.set_xticklabels(labels)
     ax.set_ylabel("Walk-forward WAPE (%)")
-    ax.set_title("Hourly marginal cost by bus, north to south: model vs. persistence")
-    ax.set_ylim(0, max(naive + lgb) * 1.3)
-    ax.legend(fontsize=8, loc="upper center", ncol=2)
+    ax.set_ylim(0, max(max(v.values()) for _, _, v in series) * 1.3)
+    ax.set_title("Hourly marginal cost by bus, north to south (labels: best model vs. persistence)")
+    ax.legend(fontsize=8, loc="upper center", ncol=len(series))
     fig.tight_layout()
     fig.savefig(OUT_DIR / "price_wape_by_bus.png", dpi=130)
     plt.close(fig)

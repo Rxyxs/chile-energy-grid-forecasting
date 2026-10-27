@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import polars as pl
 import pytest
@@ -110,3 +111,14 @@ def test_bar_forecast_uses_the_system_path_forecast_at_the_sen_node(tiny_models)
 
     pd.testing.assert_frame_equal(bar[SYSTEM_TARGETS], system_path[SYSTEM_TARGETS])
     assert bar[PRICE_TARGET].notna().all() and (bar[PRICE_TARGET] >= 0).all()
+
+
+def test_blend_weight_zero_keeps_the_bus_price_at_its_last_value(tiny_models):
+    from src.data.real_panel import PRICE_TARGET
+
+    raw = generate_energy_data()
+    hist = raw[raw["node"] == TEST_NODE].sort_values("timestamp").reset_index(drop=True)
+    hist = hist[hist[PRICE_TARGET].notna()].reset_index(drop=True)
+    out = forecast_node(hist, TEST_NODE, 3, {PRICE_TARGET: tiny_models[PRICE_TARGET]},
+                        blend_weights={TEST_NODE: 0.0})
+    assert np.allclose(out[PRICE_TARGET], max(hist[PRICE_TARGET].iloc[-1], 0.0))

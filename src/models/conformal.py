@@ -52,6 +52,14 @@ N_SPLITS = 5
 CALIBRATION_FRACTION = 0.15
 
 BASE_LGBM_PARAMS = {"random_state": 42, "verbosity": -1}
+# Conformal por grupos ("Mondrian"): un margen por hora del día, calibrado solo
+# con las horas de calibración de esa misma hora. Se evalúa junto al margen
+# global (cobertura media y de la peor hora), pero no se despliega: con datos
+# reales no arregla la peor hora de la solar (55% -> 60%) y empeora la de la
+# demanda y el precio, porque el desajuste viene sobre todo del cambio de
+# estación entre la calibración y el test, no de la hora del día (README §5.5).
+# Un grupo con menos filas de calibración que esto usa el margen global.
+MIN_GROUP_CALIBRATION = 30
 
 
 def _quantile_params(base_params: dict, quantile: float) -> dict:
@@ -92,6 +100,27 @@ def cqr_margin(y_calib: np.ndarray, lower_calib: np.ndarray, upper_calib: np.nda
     return float(np.quantile(scores, level, method="higher"))
 
 
+def group_margins(y_calib: np.ndarray, lower_calib: np.ndarray, upper_calib: np.ndarray, groups: np.ndarray,
+                  alpha: float = ALPHA, min_rows: int = MIN_GROUP_CALIBRATION) -> dict:
+    """Margen CQR por grupo (hora del día), con el margen global como respaldo."""
+    out = {"global": cqr_margin(y_calib, lower_calib, upper_calib, alpha), "by_group": {}}
+    for g in np.unique(groups):
+        m = groups == g
+        if m.sum() >= min_rows:
+            out["by_group"][int(g)] = cqr_margin(y_calib[m], lower_calib[m], upper_calib[m], alpha)
+    return out
+
+
+def margin_for(margin, groups) -> np.ndarray:
+    """Margen a aplicar en cada fila: un número (margen global) o el dict de
+    ``group_margins`` (margen de la hora de cada fila)."""
+    groups = np.asarray(groups)
+    if not isinstance(margin, dict):
+        return np.full(len(groups), float(margin))
+    by_group = {int(k): v for k, v in margin["by_group"].items()}
+    return np.array([by_group.get(int(g), margin["global"]) for g in groups])
+
+
 def rectify_crossing(lower: np.ndarray, upper: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Los dos regresores de cuantiles se entrenan por separado, así que nada
     les impide "cruzarse" (`lower > upper`) en una fila puntual -- en la
@@ -106,10 +135,14 @@ def rectify_crossing(lower: np.ndarray, upper: np.ndarray) -> tuple[np.ndarray, 
     return np.minimum(lower, upper), np.maximum(lower, upper)
 
 
-def evaluate_coverage(y_true: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> dict:
+def evaluate_coverage(y_true: np.ndarray, lower: np.ndarray, upper: np.ndarray, groups: np.ndarray | None = None) -> dict:
     lower, upper = rectify_crossing(lower, upper)
     covered = (y_true >= lower) & (y_true <= upper)
-    return {"coverage": float(covered.mean()), "mean_width": float(np.mean(upper - lower))}
+    out = {"coverage": float(covered.mean()), "mean_width": float(np.mean(upper - lower))}
+    if groups is not None:
+        by_group = pd.Series(covered).groupby(np.asarray(groups)).mean()
+        out["worst_group_coverage"] = float(by_group.min())
+    return out
 
 
 def train_conformal_intervals(
@@ -152,20 +185,29 @@ def train_conformal_intervals(
         upper_model.fit(X_fit, y_fit, categorical_feature=CATEGORICAL_FEATURES)
 
         lower_calib, upper_calib = lower_model.predict(X_calib), upper_model.predict(X_calib)
+        hour_calib = df.loc[y_calib.index, "timestamp"].dt.hour.to_numpy()
+        hour_test = df.loc[y_test.index, "timestamp"].dt.hour.to_numpy()
         margin = cqr_margin(y_calib.to_numpy(), lower_calib, upper_calib, alpha)
+        hourly = group_margins(y_calib.to_numpy(), lower_calib, upper_calib, hour_calib, alpha)
 
         lower_test, upper_test = lower_model.predict(X_test), upper_model.predict(X_test)
         y_test_arr = y_test.to_numpy()
+        m_hour = margin_for(hourly, hour_test)
 
-        naive = evaluate_coverage(y_test_arr, lower_test, upper_test)
-        conformal = evaluate_coverage(y_test_arr, lower_test - margin, upper_test + margin)
+        naive = evaluate_coverage(y_test_arr, lower_test, upper_test, hour_test)
+        conformal = evaluate_coverage(y_test_arr, lower_test - margin, upper_test + margin, hour_test)
+        by_hour = evaluate_coverage(y_test_arr, lower_test - m_hour, upper_test + m_hour, hour_test)
 
         fold_metrics.append({
             "fold": fold,
             "fit_rows": int(len(X_fit)), "calib_rows": int(len(X_calib)), "test_rows": int(len(X_test)),
             "margin": margin,
             "naive_coverage": naive["coverage"], "naive_mean_width": naive["mean_width"],
+            "naive_worst_hour_coverage": naive["worst_group_coverage"],
             "conformal_coverage": conformal["coverage"], "conformal_mean_width": conformal["mean_width"],
+            "conformal_worst_hour_coverage": conformal["worst_group_coverage"],
+            "hourly_coverage": by_hour["coverage"], "hourly_mean_width": by_hour["mean_width"],
+            "hourly_worst_hour_coverage": by_hour["worst_group_coverage"],
         })
         last_lower_model, last_upper_model, last_margin = lower_model, upper_model, margin
 
@@ -179,6 +221,9 @@ def train_conformal_intervals(
         "mean_conformal_coverage": float(np.mean([m["conformal_coverage"] for m in fold_metrics])),
         "mean_naive_width": float(np.mean([m["naive_mean_width"] for m in fold_metrics])),
         "mean_conformal_width": float(np.mean([m["conformal_mean_width"] for m in fold_metrics])),
+        **{f"mean_{k}": float(np.mean([m[k] for m in fold_metrics]))
+           for k in ("naive_worst_hour_coverage", "conformal_worst_hour_coverage", "hourly_coverage",
+                     "hourly_mean_width", "hourly_worst_hour_coverage")},
         "lower_model": last_lower_model,
         "upper_model": last_upper_model,
         "margin": last_margin,
@@ -232,7 +277,13 @@ def run_full_pipeline(n_splits: int = N_SPLITS) -> dict:
         print(
             f"  Nominal: {result['nominal_coverage']:.0%} | "
             f"Cruda promedio: {result['mean_naive_coverage']:.1%} | "
-            f"Conforme promedio: {result['mean_conformal_coverage']:.1%}"
+            f"Conforme promedio: {result['mean_conformal_coverage']:.1%} | "
+            f"Por hora: {result['mean_hourly_coverage']:.1%}"
+        )
+        print(
+            f"  Peor hora -- cruda {result['mean_naive_worst_hour_coverage']:.1%} | "
+            f"global {result['mean_conformal_worst_hour_coverage']:.1%} (ancho {result['mean_conformal_width']:.1f}) | "
+            f"por hora {result['mean_hourly_worst_hour_coverage']:.1%} (ancho {result['mean_hourly_mean_width']:.1f})"
         )
 
         MODEL_DIR.mkdir(parents=True, exist_ok=True)

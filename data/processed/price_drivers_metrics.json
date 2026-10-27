@@ -1,0 +1,140 @@
+{
+  "pooled (current features)": {
+    "mean_wape": 19.588080433240723,
+    "wape_by_node": {
+      "Crucero_220kV": 18.517104207581585,
+      "Cardones_220kV": 18.647743180082198,
+      "Pan_de_Azucar_220kV": 18.80454693719882,
+      "Quillota_220kV": 18.17376861780485,
+      "Charrua_220kV": 19.283698115055607,
+      "Puerto_Montt_220kV": 23.491663721222466
+    },
+    "n_features": 48
+  },
+  "pooled + hydro/thermal": {
+    "mean_wape": 19.976468486647143,
+    "wape_by_node": {
+      "Crucero_220kV": 18.912725723170485,
+      "Cardones_220kV": 19.120850826059502,
+      "Pan_de_Azucar_220kV": 19.24727357883895,
+      "Quillota_220kV": 18.540015415159598,
+      "Charrua_220kV": 19.639955934270652,
+      "Puerto_Montt_220kV": 23.793617422651106
+    },
+    "n_features": 54
+  },
+  "pooled + other buses' prices": {
+    "mean_wape": 19.543666284775636,
+    "wape_by_node": {
+      "Crucero_220kV": 18.619329745278936,
+      "Cardones_220kV": 18.804528039961646,
+      "Pan_de_Azucar_220kV": 18.947083307923116,
+      "Quillota_220kV": 18.03882240193776,
+      "Charrua_220kV": 19.1804306596289,
+      "Puerto_Montt_220kV": 23.193059821216075
+    },
+    "n_features": 60
+  },
+  "pooled + both": {
+    "mean_wape": 20.16852180249493,
+    "wape_by_node": {
+      "Crucero_220kV": 19.311966709717638,
+      "Cardones_220kV": 19.486475029965057,
+      "Pan_de_Azucar_220kV": 19.56005723991749,
+      "Quillota_220kV": 18.570874947435478,
+      "Charrua_220kV": 19.730555242440794,
+      "Puerto_Montt_220kV": 23.85365017797986
+    },
+    "n_features": 66
+  },
+  "per bus + both": {
+    "mean_wape": 21.208673239431697,
+    "wape_by_node": {
+      "Crucero_220kV": 20.047787330427077,
+      "Cardones_220kV": 20.39052325651866,
+      "Pan_de_Azucar_220kV": 20.10110206385432,
+      "Quillota_220kV": 19.043981741206554,
+      "Charrua_220kV": 19.871681446046132,
+      "Puerto_Montt_220kV": 26.71997675631976
+    },
+    "n_features": 66
+  },
+  "pooled, change from 1h ago": {
+    "mean_wape": 19.351226830632466,
+    "wape_by_node": {
+      "Crucero_220kV": 18.326869344816718,
+      "Cardones_220kV": 18.51037266429261,
+      "Pan_de_Azucar_220kV": 18.68474610959392,
+      "Quillota_220kV": 17.928566308149797,
+      "Charrua_220kV": 18.95593400136889,
+      "Puerto_Montt_220kV": 23.113353493346153
+    },
+    "n_features": 48
+  },
+  "pooled, blended with persistence": {
+    "mean_wape": 18.226410970433907,
+    "wape_by_node": {
+      "Crucero_220kV": 17.838626962029135,
+      "Cardones_220kV": 17.90658319975345,
+      "Pan_de_Azucar_220kV": 18.095490517186498,
+      "Quillota_220kV": 17.108265701742376,
+      "Charrua_220kV": 18.07512163560753,
+      "Puerto_Montt_220kV": 20.29272178078179
+    },
+    "n_features": 48,
+    "model_weight_by_fold": [
+      {
+        "Cardones_220kV": 0.8500000000000001,
+        "Charrua_220kV": 0.30000000000000004,
+        "Crucero_220kV": 0.9,
+        "Pan_de_Azucar_220kV": 0.65,
+        "Puerto_Montt_220kV": 0.0,
+        "Quillota_220kV": 0.5
+      },
+      {
+        "Cardones_220kV": 0.9,
+        "Charrua_220kV": 0.7000000000000001,
+        "Crucero_220kV": 0.9500000000000001,
+        "Pan_de_Azucar_220kV": 0.9,
+        "Puerto_Montt_220kV": 0.1,
+        "Quillota_220kV": 0.75
+      },
+      {
+        "Cardones_220kV": 0.75,
+        "Charrua_220kV": 0.55,
+        "Crucero_220kV": 0.75,
+        "Pan_de_Azucar_220kV": 0.7000000000000001,
+        "Puerto_Montt_220kV": 0.30000000000000004,
+        "Quillota_220kV": 0.7000000000000001
+      },
+      {
+        "Cardones_220kV": 0.75,
+        "Charrua_220kV": 0.6000000000000001,
+        "Crucero_220kV": 0.8,
+        "Pan_de_Azucar_220kV": 0.75,
+        "Puerto_Montt_220kV": 0.30000000000000004,
+        "Quillota_220kV": 0.7000000000000001
+      },
+      {
+        "Cardones_220kV": 0.8,
+        "Charrua_220kV": 0.7000000000000001,
+        "Crucero_220kV": 0.8,
+        "Pan_de_Azucar_220kV": 0.75,
+        "Puerto_Montt_220kV": 0.2,
+        "Quillota_220kV": 0.7000000000000001
+      }
+    ]
+  },
+  "naive (1h persistence)": {
+    "mean_wape": 21.77320727320688,
+    "wape_by_node": {
+      "Cardones_220kV": 23.356795243532492,
+      "Charrua_220kV": 20.879859596021152,
+      "Crucero_220kV": 23.35716825733205,
+      "Pan_de_Azucar_220kV": 23.049332935478454,
+      "Puerto_Montt_220kV": 20.66530456764021,
+      "Quillota_220kV": 20.59433890189648
+    },
+    "n_features": 0
+  }
+}

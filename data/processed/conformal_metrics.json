@@ -13,8 +13,13 @@
         "margin": 15.658991185389368,
         "naive_coverage": 0.6449480642115203,
         "naive_mean_width": 415.9885570208184,
+        "naive_worst_hour_coverage": 0.2727272727272727,
         "conformal_coverage": 0.7274787535410765,
-        "conformal_mean_width": 447.1488330186929
+        "conformal_mean_width": 447.1488330186929,
+        "conformal_worst_hour_coverage": 0.2909090909090909,
+        "hourly_coverage": 0.7495750708215297,
+        "hourly_mean_width": 618.8845556210897,
+        "hourly_worst_hour_coverage": 0.34545454545454546
       },
       {
         "fold": 1,
@@ -24,8 +29,13 @@
         "margin": 82.80720175647457,
         "naive_coverage": 0.753918791312559,
         "naive_mean_width": 417.6916242536935,
+        "naive_worst_hour_coverage": 0.4727272727272727,
         "conformal_coverage": 0.9365439093484419,
-        "conformal_mean_width": 582.9951408200803
+        "conformal_mean_width": 582.9951408200803,
+        "conformal_worst_hour_coverage": 0.7375565610859729,
+        "hourly_coverage": 0.9195467422096317,
+        "hourly_mean_width": 669.4110492588281,
+        "hourly_worst_hour_coverage": 0.5590909090909091
       },
       {
         "fold": 2,
@@ -35,8 +45,13 @@
         "margin": 30.460426076428575,
         "naive_coverage": 0.6868744098205855,
         "naive_mean_width": 424.486140507501,
+        "naive_worst_hour_coverage": 0.4863636363636364,
         "conformal_coverage": 0.8445703493862134,
-        "conformal_mean_width": 485.1831122213157
+        "conformal_mean_width": 485.1831122213157,
+        "conformal_worst_hour_coverage": 0.6063348416289592,
+        "hourly_coverage": 0.8543909348441926,
+        "hourly_mean_width": 569.5508686792981,
+        "hourly_worst_hour_coverage": 0.7545454545454545
       },
       {
         "fold": 3,
@@ -46,8 +61,13 @@
         "margin": 44.90816064678529,
         "naive_coverage": 0.7186024551463644,
         "naive_mean_width": 443.92138830328827,
+        "naive_worst_hour_coverage": 0.5113122171945701,
         "conformal_coverage": 0.8557129367327667,
-        "conformal_mean_width": 532.8412919387641
+        "conformal_mean_width": 532.8412919387641,
+        "conformal_worst_hour_coverage": 0.6318181818181818,
+        "hourly_coverage": 0.8791312559017942,
+        "hourly_mean_width": 601.3424486417518,
+        "hourly_worst_hour_coverage": 0.6863636363636364
       },
       {
         "fold": 4,
@@ -57,14 +77,24 @@
         "margin": 112.063376144627,
         "naive_coverage": 0.7155807365439093,
         "naive_mean_width": 458.91815936996005,
+        "naive_worst_hour_coverage": 0.43891402714932126,
         "conformal_coverage": 0.8417374881964117,
-        "conformal_mean_width": 683.0343293338209
+        "conformal_mean_width": 683.0343293338209,
+        "conformal_worst_hour_coverage": 0.502262443438914,
+        "hourly_coverage": 0.8381491973559962,
+        "hourly_mean_width": 761.3132471377712,
+        "hourly_worst_hour_coverage": 0.669683257918552
       }
     ],
     "mean_naive_coverage": 0.7039848914069877,
     "mean_conformal_coverage": 0.841208687440982,
     "mean_naive_width": 432.20117389105224,
     "mean_conformal_width": 546.2405414665348,
+    "mean_naive_worst_hour_coverage": 0.4364088852324146,
+    "mean_conformal_worst_hour_coverage": 0.5537762237762238,
+    "mean_hourly_coverage": 0.848158640226629,
+    "mean_hourly_mean_width": 644.1004338677478,
+    "mean_hourly_worst_hour_coverage": 0.6030275606746195,
     "margin": 112.063376144627
   },
   "wind_generation_mwh": {
@@ -81,8 +111,13 @@
         "margin": 46.66572488214203,
         "naive_coverage": 0.8169971671388102,
         "naive_mean_width": 336.23331580271457,
+        "naive_worst_hour_coverage": 0.7013574660633484,
         "conformal_coverage": 0.9152030217186025,
-        "conformal_mean_width": 429.5647655669987
+        "conformal_mean_width": 429.5647655669987,
+        "conformal_worst_hour_coverage": 0.7647058823529411,
+        "hourly_coverage": 0.9473087818696884,
+        "hourly_mean_width": 524.70849740934,
+        "hourly_worst_hour_coverage": 0.8552036199095022
       },
       {
         "fold": 1,
@@ -92,8 +127,13 @@
         "margin": 53.86052665424586,
         "naive_coverage": 0.796600566572238,
         "naive_mean_width": 374.85939279899884,
+        "naive_worst_hour_coverage": 0.6063348416289592,
         "conformal_coverage": 0.8934844192634561,
-        "conformal_mean_width": 482.5804461074905
+        "conformal_mean_width": 482.5804461074905,
+        "conformal_worst_hour_coverage": 0.6923076923076923,
+        "hourly_coverage": 0.9186024551463645,
+        "hourly_mean_width": 558.616140609646,
+        "hourly_worst_hour_coverage": 0.8597285067873304
       },
       {
         "fold": 2,
@@ -103,8 +143,13 @@
         "margin": 44.58145489628782,
         "naive_coverage": 0.840604343720491,
         "naive_mean_width": 417.3083430208432,
+        "naive_worst_hour_coverage": 0.7545454545454545,
         "conformal_coverage": 0.9101038715769594,
-        "conformal_mean_width": 506.4712528134188
+        "conformal_mean_width": 506.4712528134188,
+        "conformal_worst_hour_coverage": 0.8045454545454546,
+        "hourly_coverage": 0.9101038715769594,
+        "hourly_mean_width": 554.8033450290844,
+        "hourly_worst_hour_coverage": 0.8045454545454546
       },
       {
         "fold": 3,
@@ -114,8 +159,13 @@
         "margin": 38.683388174107904,
         "naive_coverage": 0.8117091595845137,
         "naive_mean_width": 399.5855535651145,
+        "naive_worst_hour_coverage": 0.7104072398190046,
         "conformal_coverage": 0.8857412653446648,
-        "conformal_mean_width": 476.9523299133303
+        "conformal_mean_width": 476.9523299133303,
+        "conformal_worst_hour_coverage": 0.7692307692307693,
+        "hourly_coverage": 0.9025495750708216,
+        "hourly_mean_width": 504.19313047653515,
+        "hourly_worst_hour_coverage": 0.7828054298642534
       },
       {
         "fold": 4,
@@ -125,14 +175,24 @@
         "margin": 45.20528342405299,
         "naive_coverage": 0.8060434372049103,
         "naive_mean_width": 455.99818320161677,
+        "naive_worst_hour_coverage": 0.502262443438914,
         "conformal_coverage": 0.8711992445703494,
-        "conformal_mean_width": 546.4087500497228
+        "conformal_mean_width": 546.4087500497228,
+        "conformal_worst_hour_coverage": 0.6018099547511312,
+        "hourly_coverage": 0.8861189801699717,
+        "hourly_mean_width": 580.1934316773458,
+        "hourly_worst_hour_coverage": 0.6334841628959276
       }
     ],
     "mean_naive_coverage": 0.8143909348441927,
     "mean_conformal_coverage": 0.8951463644948066,
     "mean_naive_width": 396.79695767785756,
     "mean_conformal_width": 488.3955088901923,
+    "mean_naive_worst_hour_coverage": 0.6549814890991361,
+    "mean_conformal_worst_hour_coverage": 0.7265199506375977,
+    "mean_hourly_coverage": 0.912936732766761,
+    "mean_hourly_mean_width": 544.5029090403903,
+    "mean_hourly_worst_hour_coverage": 0.7871534348004936,
     "margin": 45.20528342405299
   },
   "demand_mwh": {
@@ -149,8 +209,13 @@
         "margin": 47.882493054921724,
         "naive_coverage": 0.8060434372049103,
         "naive_mean_width": 427.860376167774,
+        "naive_worst_hour_coverage": 0.6877828054298643,
         "conformal_coverage": 0.9014164305949008,
-        "conformal_mean_width": 523.6253622776175
+        "conformal_mean_width": 523.6253622776175,
+        "conformal_worst_hour_coverage": 0.7918552036199095,
+        "hourly_coverage": 0.9444759206798867,
+        "hourly_mean_width": 666.0723348062161,
+        "hourly_worst_hour_coverage": 0.7601809954751131
       },
       {
         "fold": 1,
@@ -160,8 +225,13 @@
         "margin": 47.01797481322501,
         "naive_coverage": 0.8049102927289896,
         "naive_mean_width": 373.20963885175547,
+        "naive_worst_hour_coverage": 0.6954545454545454,
         "conformal_coverage": 0.9016052880075544,
-        "conformal_mean_width": 467.24558847820555
+        "conformal_mean_width": 467.24558847820555,
+        "conformal_worst_hour_coverage": 0.8045454545454546,
+        "hourly_coverage": 0.9210576015108592,
+        "hourly_mean_width": 533.9487132434975,
+        "hourly_worst_hour_coverage": 0.7828054298642534
       },
       {
         "fold": 2,
@@ -171,8 +241,13 @@
         "margin": 42.06319708869705,
         "naive_coverage": 0.8081208687440982,
         "naive_mean_width": 414.3384000607887,
+        "naive_worst_hour_coverage": 0.7136363636363636,
         "conformal_coverage": 0.8853635505193579,
-        "conformal_mean_width": 498.46479423818283
+        "conformal_mean_width": 498.46479423818283,
+        "conformal_worst_hour_coverage": 0.7737556561085973,
+        "hourly_coverage": 0.8914069877242682,
+        "hourly_mean_width": 516.374203741203,
+        "hourly_worst_hour_coverage": 0.7045454545454546
       },
       {
         "fold": 3,
@@ -182,8 +257,13 @@
         "margin": 51.29696412785415,
         "naive_coverage": 0.8016997167138811,
         "naive_mean_width": 400.9680533956652,
+        "naive_worst_hour_coverage": 0.497737556561086,
         "conformal_coverage": 0.8900849858356941,
-        "conformal_mean_width": 503.56198165137357
+        "conformal_mean_width": 503.56198165137357,
+        "conformal_worst_hour_coverage": 0.5972850678733032,
+        "hourly_coverage": 0.8863078375826251,
+        "hourly_mean_width": 516.4118583264135,
+        "hourly_worst_hour_coverage": 0.5475113122171946
       },
       {
         "fold": 4,
@@ -193,14 +273,24 @@
         "margin": 57.45632230037154,
         "naive_coverage": 0.7293673276676109,
         "naive_mean_width": 442.01628334227064,
+        "naive_worst_hour_coverage": 0.3891402714932127,
         "conformal_coverage": 0.8141643059490085,
-        "conformal_mean_width": 556.9289279430137
+        "conformal_mean_width": 556.9289279430137,
+        "conformal_worst_hour_coverage": 0.4751131221719457,
+        "hourly_coverage": 0.789423984891407,
+        "hourly_mean_width": 723.0807248923137,
+        "hourly_worst_hour_coverage": 0.4660633484162896
       }
     ],
     "mean_naive_coverage": 0.7900283286118981,
     "mean_conformal_coverage": 0.8785269121813031,
     "mean_naive_width": 411.6785503636508,
     "mean_conformal_width": 509.9653309176786,
+    "mean_naive_worst_hour_coverage": 0.5967503085150144,
+    "mean_conformal_worst_hour_coverage": 0.688510900863842,
+    "mean_hourly_coverage": 0.8865344664778092,
+    "mean_hourly_mean_width": 591.1775670019288,
+    "mean_hourly_worst_hour_coverage": 0.6522213081036611,
     "margin": 57.45632230037154
   },
   "marginal_cost_usd_mwh": {
@@ -217,8 +307,13 @@
         "margin": 0.3863403275353221,
         "naive_coverage": 0.8391249606547057,
         "naive_mean_width": 92.66264818062884,
+        "naive_worst_hour_coverage": 0.6591251885369532,
         "conformal_coverage": 0.8701920050361976,
-        "conformal_mean_width": 93.43532883569947
+        "conformal_mean_width": 93.43532883569947,
+        "conformal_worst_hour_coverage": 0.675,
+        "hourly_coverage": 0.8688700031476235,
+        "hourly_mean_width": 95.0434770162455,
+        "hourly_worst_hour_coverage": 0.3167420814479638
       },
       {
         "fold": 1,
@@ -228,8 +323,13 @@
         "margin": -1.7951615289869664e-05,
         "naive_coverage": 0.902962962962963,
         "naive_mean_width": 61.52191039716968,
+        "naive_worst_hour_coverage": 0.8169781931464174,
         "conformal_coverage": 0.8525281803542674,
-        "conformal_mean_width": 61.52187450781474
+        "conformal_mean_width": 61.52187450781474,
+        "conformal_worst_hour_coverage": 0.7175925925925926,
+        "hourly_coverage": 0.8078582930756844,
+        "hourly_mean_width": 55.27666586650225,
+        "hourly_worst_hour_coverage": 0.4727414330218069
       },
       {
         "fold": 2,
@@ -239,8 +339,13 @@
         "margin": 0.00032466538487877416,
         "naive_coverage": 0.9144272917857823,
         "naive_mean_width": 57.2679065250104,
+        "naive_worst_hour_coverage": 0.806697108066971,
         "conformal_coverage": 0.9162060860174067,
-        "conformal_mean_width": 57.268555814529236
+        "conformal_mean_width": 57.268555814529236,
+        "conformal_worst_hour_coverage": 0.8112633181126332,
+        "hourly_coverage": 0.9241471316943015,
+        "hourly_mean_width": 58.87647319350673,
+        "hourly_worst_hour_coverage": 0.8295281582952816
       },
       {
         "fold": 3,
@@ -250,8 +355,13 @@
         "margin": 0.0,
         "naive_coverage": 0.9005208995045102,
         "naive_mean_width": 48.78547551795442,
+        "naive_worst_hour_coverage": 0.8234398782343988,
         "conformal_coverage": 0.9005208995045102,
-        "conformal_mean_width": 48.78547551795442
+        "conformal_mean_width": 48.78547551795442,
+        "conformal_worst_hour_coverage": 0.8234398782343988,
+        "hourly_coverage": 0.8889277093126667,
+        "hourly_mean_width": 49.42704806929416,
+        "hourly_worst_hour_coverage": 0.6811263318112634
       },
       {
         "fold": 4,
@@ -261,14 +371,24 @@
         "margin": 0.051106401159067616,
         "naive_coverage": 0.885772741580107,
         "naive_mean_width": 51.63867094207675,
+        "naive_worst_hour_coverage": 0.8182503770739065,
         "conformal_coverage": 0.8933899905571294,
-        "conformal_mean_width": 51.740883744394885
+        "conformal_mean_width": 51.740883744394885,
+        "conformal_worst_hour_coverage": 0.8190045248868778,
+        "hourly_coverage": 0.9092225369845767,
+        "hourly_mean_width": 54.72940818420004,
+        "hourly_worst_hour_coverage": 0.8054298642533937
       }
     ],
     "mean_naive_coverage": 0.8885617712976137,
     "mean_conformal_coverage": 0.8865674322939023,
     "mean_naive_width": 62.37532231256802,
     "mean_conformal_width": 62.550423684078545,
+    "mean_naive_worst_hour_coverage": 0.7848981490117293,
+    "mean_conformal_worst_hour_coverage": 0.7692600627653003,
+    "mean_hourly_coverage": 0.8798051348429705,
+    "mean_hourly_mean_width": 62.67061446594975,
+    "mean_hourly_worst_hour_coverage": 0.6211135737659419,
     "margin": 0.051106401159067616
   }
 }

@@ -7,6 +7,8 @@ from src.features.build_features import build_features
 from src.models.conformal import (
     cqr_margin,
     evaluate_coverage,
+    group_margins,
+    margin_for,
     rectify_crossing,
     train_conformal_intervals,
     _split_train_calibration,
@@ -122,8 +124,30 @@ def test_train_conformal_intervals_runs_end_to_end_on_real_features(target):
     result = train_conformal_intervals(features, target, n_splits=2, lgbm_params=TINY_LGBM_PARAMS)
 
     assert len(result["fold_metrics"]) == 2
-    assert not np.isnan(result["margin"])
+    assert np.isfinite(result["margin"])
     for m in result["fold_metrics"]:
         assert 0.0 <= m["naive_coverage"] <= 1.0
         assert 0.0 <= m["conformal_coverage"] <= 1.0
+        assert 0.0 <= m["hourly_worst_hour_coverage"] <= m["hourly_coverage"] <= 1.0
         assert m["conformal_mean_width"] >= 0
+
+
+def test_group_margins_fix_the_coverage_a_global_margin_misses():
+    """Dos grupos con distinto ruido alrededor de un intervalo crudo de ancho 0:
+    un margen global sobra en el grupo tranquilo y falta en el ruidoso; el
+    margen por grupo cubre ~90% en cada uno."""
+    rng = np.random.default_rng(0)
+    n = 4000
+    groups = np.repeat([0, 1], n // 2)
+    y = rng.normal(0, np.where(groups == 0, 0.1, 2.0))
+    zeros = np.zeros(n)
+    calib, test = slice(0, n, 2), slice(1, n, 2)
+    glob = cqr_margin(y[calib], zeros[calib], zeros[calib])
+    margins = group_margins(y[calib], zeros[calib], zeros[calib], groups[calib])
+    m_test = margin_for(margins, groups[test])
+    noisy = groups[test] == 1
+    cov_global = np.abs(y[test][noisy]) <= glob
+    cov_group = np.abs(y[test][noisy]) <= m_test[noisy]
+    assert cov_global.mean() < 0.85 < cov_group.mean()
+    assert margins["by_group"][0] < glob < margins["by_group"][1]
+    assert margin_for(1.5, [3, 4]).tolist() == [1.5, 1.5]
