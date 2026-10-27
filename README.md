@@ -13,7 +13,7 @@
 ![PyMuPDF](https://img.shields.io/badge/PyMuPDF-vector%20chart%20extraction-1F6FEB)
 ![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
 ![Conformal Prediction](https://img.shields.io/badge/Conformal%20Prediction-CQR%20intervals-4a3aa7)
-![pytest](https://img.shields.io/badge/pytest-82%20passing-0A9EDC?logo=pytest&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-87%20passing-0A9EDC?logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 Hourly forecasting of Chile's National Electric System (SEN) on **four years of real hourly data (2022-2025)**: marginal cost at 6 real 220 kV buses from Antofagasta to Puerto Montt, and system-wide solar generation, wind generation and demand. The hourly series are not downloaded from an API (the grid coordinator's requires an institutional account): they are read out of the vector charts in the coordinator's public daily PDF reports, calibrated day by day against the numbers each report prints, and validated against two independent official monthly series. On top of that: LightGBM tuned with Optuna and validated walk-forward against naive baselines, real weather features (ERA5), Rolling-Origin CV against XGBoost, a PyTorch MLP, conformal prediction intervals, a recursive multi-step forecaster and a Streamlit dashboard.
@@ -33,7 +33,7 @@ Chile's SEN is a 3,000 km line. The north (Atacama) has some of the highest sola
 | Marginal cost, 6 buses, WAPE | **17.88%** blended with persistence (18.71% LightGBM alone) vs. 21.88% naive | Real prices are far harder than the old simulated panel's (8.77%) |
 | Marginal cost at Puerto Montt | LightGBM 22.75%, blended **20.34%**, naive 20.82% | Alone, the model loses to persistence at the bus decoupled from the system; a per-bus blend weight chosen on validation fixes it (§5.1) |
 | PyTorch MLP on price | 22.41% (Swish, chosen on validation) vs. 18.71% tuned LightGBM | On the simulated panel the MLP won; on real prices it does not beat persistence |
-| Price, 90% interval | **88.7%** conformal coverage, 88.9% raw quantiles | Already close to nominal before the conformal correction |
+| 90% prediction intervals | Every fold of every target covered **89-91%** with adaptive conformal inference | A fixed conformal margin covers solar 73% in its worst fold: calibrated in one season, used in the next (§5.5) |
 
 ## 2. Data: four years of real hourly data, read out of PDF charts
 
@@ -218,26 +218,28 @@ Walk-forward, 5 folds, target `marginal_cost_usd_mwh` (`python -m src.models.gen
 ![MLP PyTorch loss curve, animated](data/processed/torch_loss_curve_marginal_cost_usd_mwh_animated.gif)
 ![MLP PyTorch loss curve](data/processed/torch_loss_curve_marginal_cost_usd_mwh.png)
 
-### 5.5 Prediction intervals: Conformalized Quantile Regression (`src/models/conformal.py`)
+### 5.5 Prediction intervals: conformal quantile regression that follows the season (`src/models/conformal.py`)
 
 A pair of LightGBM quantile regressors (5th/95th percentile, a 90% nominal interval) per target, conformalized with Conformalized Quantile Regression (Romano, Patterson & Candès, 2019) on a calibration split carved from the most recent 15% of each walk-forward fold's training set. Hyperparameters are the ones Optuna tuned for the point model; only the loss changes.
 
-| Target | Raw quantile coverage | Conformal coverage | Nominal | Raw width | Conformal width |
+**A fixed margin is right on average and wrong fold by fold.** Calibrated once on the last months of training, the margin is then used through the next months, a different season: solar's coverage ranges from 73% to 94% across folds, demand's from 81% to 90%. `src/models/conformal_shift.py` compares four ways to calibrate on the same quantile models and folds:
+
+| Calibration | Solar: mean / worst fold | Wind | Demand | Price | Solar width |
 |---|---|---|---|---|---|
-| Solar (system) | 70.4% | 84.1% | 90% | 432 MW | 546 MW |
-| Wind (system) | 81.4% | **89.5%** | 90% | 397 MW | 488 MW |
-| Demand (system) | 79.0% | 87.9% | 90% | 412 MW | 510 MW |
-| Marginal cost (6 buses) | **88.9%** | 88.7% | 90% | 62.4 $/MWh | 62.6 $/MWh |
+| Fixed margin, last 15% of training | 84.1% / 72.7% | 89.5% / 87.1% | 87.9% / 81.4% | 88.7% / 85.3% | 546 MW |
+| Same calendar weeks of earlier years | 80.2% / 69.5% | 87.2% / 84.4% | 84.8% / 77.4% | 91.2% / 86.0% | 1,248 MW |
+| Rolling: recalibrate on the latest observed hours | 88.4% / 85.3% | 89.7% / 88.7% | 88.8% / 83.9% | 90.6% / 89.7% | 744 MW |
+| **Adaptive Conformal Inference** | **89.7% / 89.2%** | **90.0% / 89.9%** | **89.9% / 89.7%** | **90.2% / 89.9%** | 840 MW |
 
-**The raw quantile regressors undercover solar, wind and demand by 9-20 points, and conformalizing closes most of that gap** (wind to within half a point of nominal). On price the raw quantiles already cover 88.9%, so the conformal margin is close to zero and changes nothing. The price band is wide (about 62 USD/MWh) because the real price can sit at zero or near 150 in the same hour depending on the day.
+**Adaptive Conformal Inference (Gibbs & Candès, 2021) holds every fold of every target within 89-91%.** After each hour, once its real value is known, it moves the quantile level by `gamma × (alpha − miss)`: a run of misses widens the next intervals, a run of easy hours narrows them. `gamma = 0.005` was fixed before looking at results. The cost is honest width: solar's band grows from 546 to 840 MW, because the summer middays it was missing really are that uncertain. Calibrating on the same weeks of earlier years is worse on every target: those weeks leave the quantile models' training, and solar capacity grows so fast that last year's summer is not this year's.
 
-**Solar's interval is badly calibrated within the day.** On the deployed (last-fold) model, night hours (44% of the test rows) are covered 100% of the time with a 247 MW band they do not need, while daytime hours are covered only 71.6% of the time at 1,030 MW. A single scalar margin calibrated over both regimes is too wide for the one with no variance and too narrow for the one that has it — a limitation of global-margin CQR on a zero-inflated target. A day/night-grouped calibration would be the natural fix; not implemented here.
+The deployed intervals (`forecast.py`, the dashboard) use the ACI margin at the end of the data: for solar, 1,197 MW at the end of December 2025, against 112 MW from the fixed margin calibrated on October 2024 to April 2025. In operation the level would keep updating as each hour's real value arrives.
 
-**A margin per hour of the day does not fix it.** `conformal.py` also evaluates Mondrian CQR, one margin per hour calibrated only on that hour's calibration rows, and reports the coverage of the worst hour next to the average. The worst hour moves from 55.4% to 60.3% for solar and from 72.7% to 78.7% for wind, still far from 90% and with wider bands, and it gets worse for demand (68.9% → 65.2%) and price (76.9% → 62.1%). Solar's fold coverage ranges from 73% to 94%: most of the miscoverage comes from the season changing between the calibration window (the last months of training) and the test, not from the hour of day, and splitting the calibration into 24 groups mostly adds noise. The deployed intervals keep the global margin.
+**What none of the four fixes: the hour of the day.** ACI corrects coverage over time, not within the day: solar's worst hour is still covered only 66% of the time (night hours are over-covered, the sunrise and sunset ramps under-covered). A Mondrian variant, one margin per hour of the day, moves solar's worst hour only from 55% to 60% and makes demand's and price's worse (`conformal.py` reports it next to the others); the deployed intervals do not use it.
 
 **Quantile crossing.** The two quantile regressors are trained independently, so nothing stops them from crossing on an individual row; `rectify_crossing` enforces the standard fix (element-wise min/max, Chernozhukov, Fernández-Val & Galichon, 2010) everywhere an interval is built or scored, and `tests/test_forecast.py::test_forecast_intervals_are_never_crossed` pins it on `forecast_node`'s recursive output.
 
-Run `python -m src.models.conformal` after `train_forecaster.py` (it reuses the tuned hyperparameters from `forecaster_metrics.json`).
+Run `python -m src.models.conformal` after `train_forecaster.py` (it reuses the tuned hyperparameters from `forecaster_metrics.json`), and `python -m src.models.conformal_shift` for the comparison above.
 
 ## 6. Multi-step forecasting example
 
@@ -251,7 +253,7 @@ Real output, starting at local midnight on 2026-01-01 (the first hour after the 
 
 ## 7. Tech stack
 
-Python · **PyMuPDF** (vector chart extraction from the CEN daily reports) · Polars · pandas · NumPy · LightGBM (point + quantile regression) · XGBoost · **PyTorch** (MLP, custom Huber loss, ReLU/GELU/Swish) · **Conformalized Quantile Regression** · **DuckDB** (metrics store) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (2 notebooks) · pytest (82 tests: chart-extraction geometry and parsing, cross-source validation of the reconstructed series, panel layout and per-target rows, feature leakage, fold-splitting invariants, baselines, recursive forecast including the system-first coupling, conformal coverage/crossing, PyTorch MLP/Huber loss, DuckDB round-trip, dashboard smoke test)
+Python · **PyMuPDF** (vector chart extraction from the CEN daily reports) · Polars · pandas · NumPy · LightGBM (point + quantile regression) · XGBoost · **PyTorch** (MLP, custom Huber loss, ReLU/GELU/Swish) · **Conformalized Quantile Regression** · **DuckDB** (metrics store) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (2 notebooks) · pytest (87 tests: chart-extraction geometry and parsing, cross-source validation of the reconstructed series, panel layout and per-target rows, feature leakage, fold-splitting invariants, baselines, recursive forecast including the system-first coupling, conformal coverage/crossing, PyTorch MLP/Huber loss, DuckDB round-trip, dashboard smoke test)
 
 ## 8. Getting started
 
@@ -273,6 +275,7 @@ python -m src.models.rolling_stability      # Rolling-Origin CV, LightGBM vs XGB
 python -m src.models.generate_torch_report  # PyTorch MLP vs LightGBM/XGBoost -> plots + metrics.duckdb
 python -m src.models.conformal              # CQR prediction intervals (needs train_forecaster first)
 python -m src.models.price_drivers          # what fixes Puerto Montt: drivers, per-bus models, blend
+python -m src.models.conformal_shift        # interval calibration under season change
 
 python -m src.models.forecast --horizon 24 --nodes all   # recursive forecast (CLI)
 streamlit run src/app/dashboard.py                        # monitoring dashboard
@@ -304,7 +307,8 @@ src/
               torch_plots.py          predicted-vs-actual / residuals / loss-curve / activation plots
               metrics_db.py           DuckDB metrics store (model_comparison table)
               generate_torch_report.py  MLP training + plots + DuckDB persistence
-              conformal.py            CQR prediction intervals, 4 targets (global and per-hour margins)
+              conformal.py            CQR prediction intervals, 4 targets; adaptive (ACI) margin deployed
+              conformal_shift.py      experiment: fixed, seasonal, rolling and adaptive calibration
               forecast.py             recursive multi-step CLI (system first, then buses)
   app/        dashboard.py            Streamlit monitoring + live forecast, with interval band
 data/real/    cen_cmg_hourly.csv.gz, cen_generation_hourly_by_tech.csv.gz, cen_report_extraction_quality.csv,

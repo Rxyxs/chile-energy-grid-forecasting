@@ -60,6 +60,11 @@ BASE_LGBM_PARAMS = {"random_state": 42, "verbosity": -1}
 # estación entre la calibración y el test, no de la hora del día (README §5.5).
 # Un grupo con menos filas de calibración que esto usa el margen global.
 MIN_GROUP_CALIBRATION = 30
+# Adaptive Conformal Inference (Gibbs y Candès, 2021): el nivel del cuantil se
+# ajusta después de cada hora observada, alpha_t+1 = alpha_t + gamma (alpha - error_t).
+# Corrige el cambio de estación entre la calibración y el uso, que el margen fijo
+# no ve (README §5.5, src/models/conformal_shift.py). gamma fijado antes de mirar resultados.
+ACI_GAMMA = 0.005
 
 
 def _quantile_params(base_params: dict, quantile: float) -> dict:
@@ -98,6 +103,52 @@ def cqr_margin(y_calib: np.ndarray, lower_calib: np.ndarray, upper_calib: np.nda
     n = len(scores)
     level = min(1.0, np.ceil((n + 1) * (1 - alpha)) / n)
     return float(np.quantile(scores, level, method="higher"))
+
+
+def scores(y, lower, upper) -> np.ndarray:
+    """Puntaje de no conformidad CQR: cuánto queda ``y`` fuera del intervalo crudo."""
+    return np.maximum(np.asarray(lower) - y, y - np.asarray(upper))
+
+
+def finite_quantile(s: np.ndarray, alpha: float) -> float:
+    """Cuantil conformal ``ceil((n+1)(1-alpha))/n`` (el de ``cqr_margin``)."""
+    n = len(s)
+    level = min(1.0, max(0.0, np.ceil((n + 1) * (1 - alpha)) / n))
+    return float(np.quantile(s, level, method="higher"))
+
+
+def online_intervals(y, lower, upper, ts, calib_scores, mode: str, alpha: float = ALPHA,
+                     gamma: float = ACI_GAMMA) -> tuple[np.ndarray, float]:
+    """Margen hora a hora para ``rolling`` y ``aci``. Todas las filas de una misma
+    hora (las 6 barras) comparten margen; el valor real de esa hora entra recién
+    después de usarla. Devuelve los márgenes por fila y el margen para la hora
+    siguiente a la última (el que se despliega)."""
+    order = np.argsort(ts, kind="stable")
+    y, lower, upper, ts = y[order], lower[order], upper[order], ts[order]
+    margins = np.empty(len(y))
+    window = list(calib_scores)
+    n_window = len(window)
+    alpha_t = alpha
+    starts = np.r_[0, np.flatnonzero(ts[1:] != ts[:-1]) + 1, len(ts)]
+    for a, b in zip(starts[:-1], starts[1:]):
+        if mode == "rolling":
+            q = finite_quantile(np.asarray(window[-n_window:]), alpha)
+        else:  # aci
+            q = finite_quantile(calib_scores, alpha_t) if alpha_t > 0 else float(np.max(calib_scores))
+        margins[a:b] = q
+        s = scores(y[a:b], lower[a:b], upper[a:b])
+        if mode == "rolling":
+            window.extend(s.tolist())
+        else:
+            err = float(np.mean(s > q))
+            alpha_t = alpha_t + gamma * (alpha - err)
+    out = np.empty(len(y))
+    out[order] = margins
+    if mode == "rolling":
+        nxt = finite_quantile(np.asarray(window[-n_window:]), alpha)
+    else:
+        nxt = finite_quantile(calib_scores, alpha_t) if alpha_t > 0 else float(np.max(calib_scores))
+    return out, nxt
 
 
 def group_margins(y_calib: np.ndarray, lower_calib: np.ndarray, upper_calib: np.ndarray, groups: np.ndarray,
@@ -194,9 +245,14 @@ def train_conformal_intervals(
         y_test_arr = y_test.to_numpy()
         m_hour = margin_for(hourly, hour_test)
 
+        calib_scores = scores(y_calib.to_numpy(), lower_calib, upper_calib)
+        m_aci, next_aci = online_intervals(y_test_arr, lower_test, upper_test,
+                                           df.loc[y_test.index, "timestamp"].to_numpy(), calib_scores, "aci", alpha)
+
         naive = evaluate_coverage(y_test_arr, lower_test, upper_test, hour_test)
         conformal = evaluate_coverage(y_test_arr, lower_test - margin, upper_test + margin, hour_test)
         by_hour = evaluate_coverage(y_test_arr, lower_test - m_hour, upper_test + m_hour, hour_test)
+        aci = evaluate_coverage(y_test_arr, lower_test - m_aci, upper_test + m_aci, hour_test)
 
         fold_metrics.append({
             "fold": fold,
@@ -208,8 +264,11 @@ def train_conformal_intervals(
             "conformal_worst_hour_coverage": conformal["worst_group_coverage"],
             "hourly_coverage": by_hour["coverage"], "hourly_mean_width": by_hour["mean_width"],
             "hourly_worst_hour_coverage": by_hour["worst_group_coverage"],
+            "aci_coverage": aci["coverage"], "aci_mean_width": aci["mean_width"],
+            "aci_worst_hour_coverage": aci["worst_group_coverage"], "aci_next_margin": next_aci,
         })
-        last_lower_model, last_upper_model, last_margin = lower_model, upper_model, margin
+        # El margen desplegado es el de ACI para la hora siguiente al final de los datos.
+        last_lower_model, last_upper_model, last_margin = lower_model, upper_model, next_aci
 
     return {
         "target_column": target_column,
@@ -223,7 +282,10 @@ def train_conformal_intervals(
         "mean_conformal_width": float(np.mean([m["conformal_mean_width"] for m in fold_metrics])),
         **{f"mean_{k}": float(np.mean([m[k] for m in fold_metrics]))
            for k in ("naive_worst_hour_coverage", "conformal_worst_hour_coverage", "hourly_coverage",
-                     "hourly_mean_width", "hourly_worst_hour_coverage")},
+                     "hourly_mean_width", "hourly_worst_hour_coverage", "aci_coverage", "aci_mean_width",
+                     "aci_worst_hour_coverage")},
+        "worst_fold_conformal_coverage": float(np.min([m["conformal_coverage"] for m in fold_metrics])),
+        "worst_fold_aci_coverage": float(np.min([m["aci_coverage"] for m in fold_metrics])),
         "lower_model": last_lower_model,
         "upper_model": last_upper_model,
         "margin": last_margin,
@@ -284,6 +346,10 @@ def run_full_pipeline(n_splits: int = N_SPLITS) -> dict:
             f"  Peor hora -- cruda {result['mean_naive_worst_hour_coverage']:.1%} | "
             f"global {result['mean_conformal_worst_hour_coverage']:.1%} (ancho {result['mean_conformal_width']:.1f}) | "
             f"por hora {result['mean_hourly_worst_hour_coverage']:.1%} (ancho {result['mean_hourly_mean_width']:.1f})"
+        )
+        print(
+            f"  ACI -- cobertura {result['mean_aci_coverage']:.1%} | peor fold {result['worst_fold_aci_coverage']:.1%} "
+            f"(margen fijo {result['worst_fold_conformal_coverage']:.1%}) | ancho {result['mean_aci_mean_width']:.1f}"
         )
 
         MODEL_DIR.mkdir(parents=True, exist_ok=True)

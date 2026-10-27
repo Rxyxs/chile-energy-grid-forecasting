@@ -1,5 +1,4 @@
 import pandas as pd
-import pytest
 
 from src.models.baselines import naive_metrics, seasonal_naive_metrics
 
