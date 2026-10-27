@@ -19,7 +19,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.data.real_panel import PRICE_TARGET, SYSTEM_NODE, SYSTEM_TARGETS, rows_for_target
-from src.models.forecast import RAW_PATH, forecast_node, load_interval_models, load_models
+from src.models.forecast import RAW_PATH, forecast_node, load_blend_weights, load_interval_models, load_models
 from src.models.train_forecaster import (
     CATEGORICAL_FEATURES,
     DEFAULT_TARGET,
@@ -170,7 +170,8 @@ def render_future_forecast(node: str, raw_history: pd.DataFrame) -> None:
                                 subset(SYSTEM_TARGETS, models), subset(SYSTEM_TARGETS, interval_models))
     node_history = history(node)
     future_df = forecast_node(node_history, node, horizon, subset([PRICE_TARGET], models),
-                              subset([PRICE_TARGET], interval_models), system_path=system_path)
+                              subset([PRICE_TARGET], interval_models), system_path=system_path,
+                              blend_weights=load_blend_weights())
 
     history_tail = node_history.tail(72)
     fig = go.Figure()

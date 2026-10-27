@@ -25,9 +25,10 @@ import pandas as pd
 from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_absolute_error
 
-from src.data.real_panel import rows_for_target
+from src.data.real_panel import PRICE_TARGET, rows_for_target
 from src.features.build_features import WEATHER_COLUMNS
 from src.models.baselines import naive_metrics, seasonal_naive_metrics
+from src.models.blend import apply_blend, blend_weights, fit_predict
 from src.models.validation import get_walk_forward_folds, mean_by_node, wape, wape_by_node
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -138,6 +139,37 @@ def train_with_walk_forward_validation(
     }
 
 
+def walk_forward_blend(df: pd.DataFrame, target_column: str, lgbm_params: dict, n_splits: int = N_SPLITS) -> dict:
+    """Walk-forward del modelo mezclado por barra con la persistencia (ver
+    ``src/models/blend.py``): en cada fold el peso de cada barra se elige dentro
+    del entrenamiento y se aplica al test. Los pesos desplegados son los del
+    último fold, igual que el modelo desplegado."""
+    feature_columns = get_feature_columns(df)
+    df = rows_for_target(df, target_column).dropna(subset=feature_columns + [target_column]).reset_index(drop=True)
+    params = {**BASE_LGBM_PARAMS, **lgbm_params}
+    lag_col = f"{target_column}_lag_1h"
+    fold_metrics, weights = [], {}
+    for fold, (train_ts, test_ts) in enumerate(get_walk_forward_folds(df, n_splits)):
+        train, test = df[df["timestamp"].isin(train_ts)], df[df["timestamp"].isin(test_ts)]
+        weights = blend_weights(train, feature_columns, target_column, params, CATEGORICAL_FEATURES, lag_col)
+        pred = fit_predict(train, test, feature_columns, target_column, params, CATEGORICAL_FEATURES)
+        y_pred = apply_blend(pred, test["node"], test[lag_col].to_numpy(), weights)
+        y_test = test[target_column]
+        fold_metrics.append({
+            "fold": fold, "test_rows": int(len(test)), "weights": weights,
+            "wape": wape(y_test.to_numpy(), y_pred),
+            "mae": float(mean_absolute_error(y_test, y_pred)),
+            "wape_by_node": wape_by_node(test["node"], y_test, y_pred),
+        })
+    return {
+        "fold_metrics": fold_metrics,
+        "mean_wape": float(np.mean([m["wape"] for m in fold_metrics])),
+        "mean_mae": float(np.mean([m["mae"] for m in fold_metrics])),
+        "mean_wape_by_node": mean_by_node(fold_metrics),
+        "deployed_weights": weights,
+    }
+
+
 def tune_hyperparameters(
     df: pd.DataFrame,
     target_column: str,
@@ -205,6 +237,12 @@ def run_full_pipeline(n_trials: int = N_TUNING_TRIALS, n_splits: int = N_SPLITS)
         print(f"  Naive     -> WAPE promedio: {naive['mean_wape']:.2f}% | MAE promedio: {naive['mean_mae']:.2f}")
         print(f"  Seasonal  -> WAPE promedio: {seasonal['mean_wape']:.2f}% | MAE promedio: {seasonal['mean_mae']:.2f}")
 
+        blend = None
+        if target == PRICE_TARGET:
+            blend = walk_forward_blend(df, target, tuning["best_params"], n_splits=n_splits)
+            print(f"  Mezcla con persistencia -> WAPE promedio: {blend['mean_wape']:.2f}% | MAE promedio: {blend['mean_mae']:.2f}")
+            print(f"  Pesos del modelo desplegados: {blend['deployed_weights']}")
+
         model_path = MODEL_DIR / f"forecaster_{target}.joblib"
         MODEL_DIR.mkdir(parents=True, exist_ok=True)
         joblib.dump(result["final_model"], model_path)
@@ -215,6 +253,7 @@ def run_full_pipeline(n_trials: int = N_TUNING_TRIALS, n_splits: int = N_SPLITS)
             "lightgbm": {k: v for k, v in result.items() if k != "final_model"},
             "naive_baseline": naive,
             "seasonal_naive_baseline": seasonal,
+            **({"blend_with_persistence": blend} if blend else {}),
         }
 
     METRICS_OUTPUT_PATH.write_text(json.dumps(all_metrics, indent=2), encoding="utf-8")

@@ -13,7 +13,7 @@
 ![PyMuPDF](https://img.shields.io/badge/PyMuPDF-extracci%C3%B3n%20de%20gr%C3%A1ficos%20vectoriales-1F6FEB)
 ![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
 ![Conformal Prediction](https://img.shields.io/badge/Predicci%C3%B3n%20Conformal-intervalos%20CQR-4a3aa7)
-![pytest](https://img.shields.io/badge/pytest-78%20passing-0A9EDC?logo=pytest&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-82%20passing-0A9EDC?logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 Pronóstico horario del Sistema Eléctrico Nacional (SEN) de Chile sobre **cuatro años de datos horarios reales (2022-2025)**: el costo marginal de 6 barras reales de 220 kV, de Antofagasta a Puerto Montt, y la generación solar, la generación eólica y la demanda del sistema completo. Las series horarias no vienen de una API (la del Coordinador exige una cuenta institucional): se leen de los gráficos vectoriales de sus informes diarios públicos en PDF, se calibran día a día contra los números que imprime cada informe y se validan contra dos series mensuales oficiales independientes. Encima de eso: LightGBM ajustado con Optuna y validado walk-forward contra baselines ingenuos, variables de clima reales (ERA5), Rolling-Origin CV contra XGBoost, una MLP en PyTorch, intervalos de predicción conformales, un pronóstico recursivo multi-step y un dashboard en Streamlit.
@@ -30,8 +30,8 @@ El SEN es una línea de 3.000 km. El norte (Atacama) tiene de las radiaciones so
 | WAPE de la demanda (sistema) | **1,20%** vs. 2,50% del ingenuo | La mitad del error de la persistencia de 1 hora |
 | WAPE de la solar (sistema) | **6,26%** vs. 22,05% del ingenuo, 11,34% la misma hora de ayer | La hora del día y la producción reciente explican la mayor parte |
 | WAPE de la eólica (sistema) | **9,01%** vs. 11,80% del ingenuo | La persistencia es un baseline difícil para el viento |
-| WAPE del costo marginal, 6 barras | **18,71%** vs. 21,88% del ingenuo | Los precios reales son mucho más difíciles que los del panel simulado anterior (8,77%) |
-| Costo marginal en Puerto Montt | LightGBM **22,75%** vs. **20,82%** del ingenuo | La única barra donde el modelo pierde contra la persistencia: está desacoplada de la demanda residual del sistema |
+| WAPE del costo marginal, 6 barras | **17,88%** mezclado con la persistencia (18,71% LightGBM solo) vs. 21,88% del ingenuo | Los precios reales son mucho más difíciles que los del panel simulado anterior (8,77%) |
+| Costo marginal en Puerto Montt | LightGBM 22,75%, mezcla **20,34%**, ingenuo 20,82% | Solo, el modelo pierde contra la persistencia en la barra desacoplada del sistema; un peso de mezcla por barra elegido en validación lo arregla (§5.1) |
 | MLP de PyTorch sobre el precio | 22,41% (Swish, elegida en validación) vs. 18,71% de LightGBM ajustado | Con el panel simulado la MLP ganaba; con precios reales no le gana a la persistencia |
 | Precio, intervalo al 90% | **88,7%** de cobertura conformal, 88,9% los cuantiles crudos | Ya cerca del nominal antes de la corrección conformal |
 
@@ -132,9 +132,40 @@ Todas las cifras salen de correr `python -m src.models.train_forecaster` de punt
 | Charrúa | **18,59%** | 21,02% | 38,54% | −12% |
 | Puerto Montt | 22,75% | **20,82%** | 57,47% | **+9%** |
 
-**La ventaja del modelo se achica de norte a sur y se vuelve negativa en Puerto Montt.** En el norte, el colapso del precio a mediodía se puede anticipar con la solar del sistema y la hora del día, algo que la persistencia no ve venir. El precio de Puerto Montt casi no se relaciona con la demanda residual del sistema (correlación 0,20, §2), así que las variables que sostienen a las otras cinco barras no le sirven, y un modelo compartido entre barras le aplica el patrón del norte donde no corresponde. Un modelo por barra o variables propias de la barra (hidrología regional, límites de transmisión) serían el siguiente paso ahí.
+**La ventaja del modelo se achica de norte a sur y se vuelve negativa en Puerto Montt.** En el norte, el colapso del precio a mediodía se puede anticipar con la solar del sistema y la hora del día, algo que la persistencia no ve venir. El precio de Puerto Montt casi no se relaciona con la demanda residual del sistema (correlación 0,20, §2), así que las variables que sostienen a las otras cinco barras no le sirven, y un modelo compartido entre barras le aplica el patrón del norte donde no corresponde. La subsección siguiente prueba qué lo arregla.
 
 **Qué cambió respecto del panel simulado.** La versión anterior de este proyecto pronosticaba el precio con 8,77% de WAPE sobre un panel cuyos precios horarios eran simulados alrededor de un nivel mensual real. Con precios horarios reales el mismo pipeline llega a 18,71%, y su ventaja sobre la persistencia baja de 21% a 14%. Los precios reales tienen muchos ceros (el norte a mediodía), cambian de régimen (un 2022 con promedio de unos 100 USD/MWh, un 2024 bajo 50 en cinco de las seis barras) y se separan por geografía; el simulador no tenía nada de eso.
+
+### Qué arregla Puerto Montt: reaccionar menos, no más información
+
+`src/models/price_drivers.py` prueba, con los mismos folds walk-forward e hiperparámetros por defecto fijos, qué le podría faltar al modelo de precio:
+
+| Variante | WAPE del precio, 6 barras | Puerto Montt |
+|---|---|---|
+| Un modelo para todas las barras (variables actuales) | 19,59% | 23,49% |
+| + generación hidro y térmica del sistema (rezagos 1h, 24h, 168h) | 19,98% | 23,79% |
+| + precios de las seis barras (rezagos 1h, 24h) | 19,54% | 23,19% |
+| + ambas | 20,17% | 23,85% |
+| Un modelo por barra, con ambas | 21,21% | 26,72% |
+| Pronosticar el cambio respecto de hace 1 hora en vez del nivel | 19,35% | 23,11% |
+| **Mezcla con la persistencia, un peso por barra** | **18,23%** | **20,29%** |
+| Ingenuo (valor de hace 1 hora) | 21,77% | 20,67% |
+
+**Más información no ayudó.** Las series horarias de hidro y térmica (ya leídas de los informes diarios y sin usar hasta ahora) y el estado de la red en los precios de las otras barras empeoran levemente todas las barras, y seis modelos separados, cada uno con un sexto de los datos, empeoran más. **Reaccionar menos sí.** La mezcla pronostica `w × modelo + (1 − w) × precio de hace 1 hora`, con un peso por barra elegido en el último 15% del entrenamiento de cada fold (con un modelo ajustado en el 85% anterior), nunca en el test. Los pesos elegidos siguen la geografía: 0,75-1,0 en el norte, 0,55-0,80 en Charrúa y 0-0,4 en Puerto Montt, donde el mejor pronóstico de la hora siguiente es sobre todo la hora actual.
+
+Con los hiperparámetros ajustados por Optuna la mezcla ya es parte de `train_forecaster.py` (`src/models/blend.py`), y `forecast.py` y el dashboard aplican los pesos desplegados:
+
+| Barra | LightGBM | Mezcla | Ingenuo | Peso del modelo desplegado |
+|---|---|---|---|---|
+| Crucero | 17,20% | **16,99%** | 23,38% | 0,90 |
+| Cardones | 17,41% | **17,17%** | 23,41% | 0,90 |
+| Pan de Azúcar | 18,01% | **17,77%** | 23,10% | 0,85 |
+| Quillota | 17,52% | **16,87%** | 20,73% | 0,80 |
+| Charrúa | 18,59% | **17,85%** | 21,02% | 0,80 |
+| Puerto Montt | 22,75% | **20,34%** | 20,82% | 0,25 |
+| **Las seis** | 18,71% | **17,88%** | 21,88% | |
+
+La mezcla mejora todas las barras y convierte a Puerto Montt de una pérdida contra la persistencia (+9%) en una pequeña ganancia (−2%).
 
 ### 5.2 Aislando el efecto del clima: una ablación controlada (`notebooks/02_Weather_Augmented_Rolling_CV.ipynb`)
 
@@ -202,6 +233,8 @@ Un par de regresores cuantílicos LightGBM (percentiles 5 y 95, un intervalo nom
 
 **El intervalo de la solar está mal calibrado dentro del día.** En el modelo desplegado (último fold), las horas de noche (44% del test) quedan cubiertas el 100% de las veces con una banda de 247 MW que no necesitan, mientras las horas de día quedan cubiertas solo el 71,6% de las veces con 1.030 MW. Un único margen calibrado sobre ambos regímenes es demasiado ancho para el que no tiene varianza y demasiado angosto para el que sí: una limitación del CQR de margen global sobre un target con muchos ceros. Calibrar por separado de día y de noche sería el arreglo natural; no está implementado.
 
+**Un margen por hora del día no lo arregla.** `conformal.py` también evalúa CQR Mondrian, un margen por hora calibrado solo con las filas de calibración de esa hora, y reporta la cobertura de la peor hora junto a la media. La peor hora pasa de 55,4% a 60,3% en la solar y de 72,7% a 78,7% en la eólica, todavía lejos de 90% y con bandas más anchas, y empeora en la demanda (68,9% → 65,2%) y el precio (76,9% → 62,1%). La cobertura de la solar por fold va de 73% a 94%: la mayor parte del desajuste viene del cambio de estación entre el tramo de calibración (los últimos meses del entrenamiento) y el test, no de la hora del día, y partir la calibración en 24 grupos sobre todo agrega ruido. Los intervalos desplegados mantienen el margen global.
+
 **Cruce de cuantiles.** Los dos regresores cuantílicos se entrenan por separado, así que nada impide que se crucen en una fila; `rectify_crossing` aplica el arreglo estándar (mínimo/máximo elemento a elemento, Chernozhukov, Fernández-Val y Galichon, 2010) en todo lugar donde se construye o evalúa un intervalo, y `tests/test_forecast.py::test_forecast_intervals_are_never_crossed` lo fija sobre la salida recursiva de `forecast_node`.
 
 Corre `python -m src.models.conformal` después de `train_forecaster.py` (reutiliza los hiperparámetros ajustados de `forecaster_metrics.json`).
@@ -212,13 +245,13 @@ Corre `python -m src.models.conformal` después de `train_forecaster.py` (reutil
 python -m src.models.forecast --horizon 12 --nodes Crucero_220kV,Puerto_Montt_220kV
 ```
 
-Salida real, partiendo a medianoche local del 2026-01-01 (la primera hora después de los datos): el pronóstico del sistema pone la solar en 1,15 GW a las 07:00 y en 6,9 GW a las 11:00. Con esa trayectoria del sistema, **el precio de Crucero cae de 51-62 USD/MWh en la noche a 0-1 USD/MWh entre las 08:00 y las 10:00**, mientras **el de Puerto Montt baja a 19 USD/MWh a las 08:00 y vuelve a 30-41 entre las 09:00 y las 11:00**: el desacople norte-sur de §2, recuperado de las propias predicciones recursivas del modelo. La solar pronosticada de noche no es exactamente cero (19-73 MW, alrededor de 1% del máximo): el modelo no tiene una restricción física, solo un piso en 0.
+Salida real, partiendo a medianoche local del 2026-01-01 (la primera hora después de los datos): el pronóstico del sistema pone la solar en 1,15 GW a las 07:00 y en 6,9 GW a las 11:00. Con esa trayectoria del sistema, y con los pesos de mezcla desplegados, **el precio de Crucero cae de 52-62 USD/MWh en la noche a 2 USD/MWh a las 08:00 y a 6-16 entre las 09:00 y las 11:00**, mientras **el de Puerto Montt se queda en 38-39 USD/MWh durante la mañana** (48-51 en la noche): el desacople norte-sur de §2. Con un peso del modelo de 0,25, el pronóstico de Puerto Montt arrastra sobre todo su último valor, que es lo que eligió la validación. La solar pronosticada de noche no es exactamente cero (19-73 MW, alrededor de 1% del máximo): el modelo no tiene una restricción física, solo un piso en 0.
 
 **Limitación:** `forecast.py` persiste los últimos valores de clima *conocidos* hacia las horas futuras (ver `forecast_node`, `last_known_weather`), porque el proyecto usa observaciones meteorológicas históricas, no un pronóstico meteorológico. La solar sigue la hora del día porque la codificación cíclica se recalcula para cada hora futura, pero la eólica solo sigue sus propios rezagos. Un despliegue en producción necesitaría un pronóstico meteorológico real para el horizonte.
 
 ## 7. Stack tecnológico
 
-Python · **PyMuPDF** (extracción de gráficos vectoriales de los informes diarios del CEN) · Polars · pandas · NumPy · LightGBM (puntual + regresión cuantílica) · XGBoost · **PyTorch** (MLP, loss Huber propia, ReLU/GELU/Swish) · **Conformalized Quantile Regression** · **DuckDB** (almacén de métricas) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (2 notebooks) · pytest (78 tests: geometría y lectura de la extracción de gráficos, validación cruzada de las series reconstruidas, estructura del panel y filas por target, fuga de variables, invariantes de los folds, baselines, pronóstico recursivo incluido el acople sistema-barra, cobertura y cruce conformal, MLP/loss Huber en PyTorch, ida y vuelta en DuckDB, smoke test del dashboard)
+Python · **PyMuPDF** (extracción de gráficos vectoriales de los informes diarios del CEN) · Polars · pandas · NumPy · LightGBM (puntual + regresión cuantílica) · XGBoost · **PyTorch** (MLP, loss Huber propia, ReLU/GELU/Swish) · **Conformalized Quantile Regression** · **DuckDB** (almacén de métricas) · Optuna · scikit-learn (`TimeSeriesSplit`) · Streamlit · Plotly · `holidays` · Jupyter/matplotlib (2 notebooks) · pytest (82 tests: geometría y lectura de la extracción de gráficos, validación cruzada de las series reconstruidas, estructura del panel y filas por target, fuga de variables, invariantes de los folds, baselines, pronóstico recursivo incluido el acople sistema-barra, cobertura y cruce conformal, MLP/loss Huber en PyTorch, ida y vuelta en DuckDB, smoke test del dashboard)
 
 ## 8. Cómo ejecutar
 
@@ -239,6 +272,7 @@ python -m src.models.train_forecaster       # tuning Optuna + walk-forward, los 
 python -m src.models.rolling_stability      # Rolling-Origin CV, LightGBM vs XGBoost
 python -m src.models.generate_torch_report  # MLP PyTorch vs LightGBM/XGBoost -> gráficos + metrics.duckdb
 python -m src.models.conformal              # intervalos CQR (requiere train_forecaster antes)
+python -m src.models.price_drivers          # qué arregla Puerto Montt: variables, modelos por barra, mezcla
 
 python -m src.models.forecast --horizon 24 --nodes all   # pronóstico recursivo (CLI)
 streamlit run src/app/dashboard.py                        # dashboard de monitoreo
@@ -262,13 +296,15 @@ src/
   features/   build_features.py       rezagos, ventanas móviles, ciclos, calendario y clima con Polars
   models/     validation.py           folds walk-forward y Rolling-Origin, WAPE (global y por nodo)
               baselines.py            métricas de referencia ingenua / estacional
-              train_forecaster.py     tuning Optuna + LightGBM, 4 targets
+              train_forecaster.py     tuning Optuna + LightGBM, 4 targets; precio mezclado con la persistencia
+              blend.py                peso de mezcla modelo/persistencia por barra, elegido dentro de cada fold
+              price_drivers.py        experimento: variables extra, modelos por barra, target de cambio, mezcla
               rolling_stability.py    Rolling-Origin CV, LightGBM vs XGBoost
               torch_forecaster.py     MLP PyTorch, loss Huber, comparación ReLU/GELU/Swish
               torch_plots.py          gráficos de predicho vs. real, residuos, curva de loss y activaciones
               metrics_db.py           almacén de métricas DuckDB (tabla model_comparison)
               generate_torch_report.py  entrenamiento MLP + gráficos + persistencia en DuckDB
-              conformal.py            intervalos de predicción CQR, 4 targets
+              conformal.py            intervalos de predicción CQR, 4 targets (margen global y por hora)
               forecast.py             pronóstico recursivo multi-step (primero el sistema, después las barras)
   app/        dashboard.py            monitoreo en Streamlit + pronóstico en vivo, con banda de intervalo
 data/real/    cen_cmg_hourly.csv.gz, cen_generation_hourly_by_tech.csv.gz, cen_report_extraction_quality.csv,
