@@ -235,7 +235,17 @@ Un par de regresores cuantílicos LightGBM (percentiles 5 y 95, un intervalo nom
 
 Los intervalos desplegados (`forecast.py`, el dashboard) usan el margen de ACI al final de los datos: para la solar, 1.197 MW a fines de diciembre de 2025, contra 112 MW del margen fijo calibrado entre octubre de 2024 y abril de 2025. En operación el nivel seguiría actualizándose a medida que llega el valor real de cada hora.
 
-**Lo que ninguna de las cuatro arregla: la hora del día.** ACI corrige la cobertura en el tiempo, no dentro del día: la peor hora de la solar sigue cubierta solo el 66% de las veces (las horas de noche quedan sobrecubiertas, las rampas del amanecer y el atardecer subcubiertas). Una variante Mondrian, un margen por hora del día, solo mueve la peor hora de la solar de 55% a 60% y empeora la de la demanda y el precio (`conformal.py` la reporta junto a las demás); los intervalos desplegados no la usan.
+**La hora del día necesita su propio nivel adaptativo.** ACI corrige la cobertura en el tiempo, no dentro del día: la peor hora de la solar sigue cubierta solo el 66% de las veces (las horas de noche quedan sobrecubiertas, las rampas del amanecer y el atardecer subcubiertas). Un margen Mondrian fijo, uno por hora del día, casi no ayuda (la peor hora de la solar pasa de 55% a 60% y empeora la de la demanda y el precio; `conformal.py` la reporta junto a las demás). Dos variantes de ACI por hora (`online_intervals_hourly`) funcionan mejor, con reglas fijadas antes de mirar resultados. Cada hora del día tiene sus propios puntajes de calibración y su propio nivel, que se actualiza una vez al día con `gamma = 24 × 0,005` (la misma velocidad de adaptación medida en días). La variante escalada además mide los fallos en anchos del intervalo cuantílico crudo, así el margen crece donde los modelos de cuantiles ya ven incertidumbre:
+
+| Peor hora del día (promedio de los folds) | Solar | Eólica | Demanda | Precio |
+|---|---|---|---|---|
+| ACI, un nivel para todas las horas | 66,2% | 74,6% | 73,0% | 80,2% |
+| ACI por hora | 69,7% | 87,0% | 78,1% | 88,6% |
+| **ACI por hora, escalado por el ancho crudo** | **75,0%** | **88,5%** | **82,6%** | **89,6%** |
+| Peor fold, ACI por hora escalado (ACI global) | 79,8% (89,2%) | 90,0% (89,9%) | 88,7% (89,7%) | 90,0% (89,9%) |
+| Ancho medio, ACI por hora escalado (ACI global) | 875 (840) MW | 583 (503) MW | 637 (576) MW | 78,5 (64,3) USD |
+
+En la eólica y el precio, la versión por hora escalada deja la peor hora a menos de 1,5 puntos del nominal sin perder cobertura media ni del peor fold, a cambio de 16-22% más de ancho. En la solar es un intercambio, no un arreglo: cada hora aprende solo una vez al día, así que un cambio de estación tarda más en absorberse y el peor fold cae de 89% a 80%; la peor hora sigue en 75%. Como ninguna variante gana en todos los targets y en todos los criterios, los intervalos desplegados mantienen el margen de ACI global.
 
 **Cruce de cuantiles.** Los dos regresores cuantílicos se entrenan por separado, así que nada impide que se crucen en una fila; `rectify_crossing` aplica el arreglo estándar (mínimo/máximo elemento a elemento, Chernozhukov, Fernández-Val y Galichon, 2010) en todo lugar donde se construye o evalúa un intervalo, y `tests/test_forecast.py::test_forecast_intervals_are_never_crossed` lo fija sobre la salida recursiva de `forecast_node`.
 
@@ -308,7 +318,7 @@ src/
               metrics_db.py           almacén de métricas DuckDB (tabla model_comparison)
               generate_torch_report.py  entrenamiento MLP + gráficos + persistencia en DuckDB
               conformal.py            intervalos de predicción CQR, 4 targets; margen adaptativo (ACI) desplegado
-              conformal_shift.py      experimento: calibración fija, estacional, móvil y adaptativa
+              conformal_shift.py      experimento: calibración fija, estacional, móvil, adaptativa y adaptativa por hora
               forecast.py             pronóstico recursivo multi-step (primero el sistema, después las barras)
   app/        dashboard.py            monitoreo en Streamlit + pronóstico en vivo, con banda de intervalo
 data/real/    cen_cmg_hourly.csv.gz, cen_generation_hourly_by_tech.csv.gz, cen_report_extraction_quality.csv,

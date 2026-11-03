@@ -17,6 +17,10 @@ cuantiles, folds y nivel nominal (90%):
   cuantil se ajusta después de cada hora según si el intervalo cubrió,
   ``alpha_t+1 = alpha_t + gamma (alpha - error_t)``, con ``gamma = 0.005``
   fijado antes de mirar resultados.
+- ``aci_hour``: ACI con un nivel y unos puntajes de calibración por hora del
+  día (``online_intervals_hourly``), actualizado una vez al día con ``24 gamma``.
+- ``aci_hour_scaled``: lo mismo, con los puntajes medidos en anchos del
+  intervalo crudo, así el margen crece donde el modelo ve más incertidumbre.
 
 Métricas por target: cobertura media, cobertura del peor fold (la que el
 cambio de estación arruina), cobertura de la peor hora del día y ancho medio.
@@ -35,7 +39,7 @@ from lightgbm import LGBMRegressor
 from src.data.real_panel import rows_for_target
 from src.models.conformal import (
     ALPHA, CALIBRATION_FRACTION, LOWER_Q, UPPER_Q, N_SPLITS, _quantile_params, _split_train_calibration,
-    finite_quantile, online_intervals, rectify_crossing, scores,
+    finite_quantile, online_intervals, online_intervals_hourly, rectify_crossing, scores,
 )
 from src.models.train_forecaster import (
     CATEGORICAL_FEATURES, METRICS_OUTPUT_PATH, TARGET_COLUMNS, _prepare_fold, get_feature_columns, load_features,
@@ -46,7 +50,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "conformal_shift_metrics.json"
 SEASON_WINDOW_DAYS = 45
 MIN_SEASONAL_FRACTION = 0.05
-VARIANTS = ("recent", "seasonal", "rolling", "aci")
+VARIANTS = ("recent", "seasonal", "rolling", "aci", "aci_hour", "aci_hour_scaled")
 
 
 def seasonal_split(train_ts: set, test_ts: set, window_days: int = SEASON_WINDOW_DAYS,
@@ -94,13 +98,20 @@ def evaluate_target(df: pd.DataFrame, target: str, params: dict, n_splits: int =
         fit_ts, calib_ts = _split_train_calibration(train_ts, CALIBRATION_FRACTION)
         lo, hi = _fit_quantiles(df, cols, target, fit_ts, params)
         _, _, X_cal, y_cal = _prepare_fold(df, cols, target, fit_ts, calib_ts)
-        cal_scores = scores(y_cal.to_numpy(), lo.predict(X_cal), hi.predict(X_cal))
+        lo_cal, hi_cal = lo.predict(X_cal), hi.predict(X_cal)
+        cal_scores = scores(y_cal.to_numpy(), lo_cal, hi_cal)
+        cal_hours = df.loc[y_cal.index, "timestamp"].dt.hour.to_numpy()
         lower, upper = lo.predict(X_test), hi.predict(X_test)
         m = finite_quantile(cal_scores, ALPHA)
         folds["recent"].append(_coverage(y, lower - m, upper + m, hours))
         for mode in ("rolling", "aci"):
             mm, _ = online_intervals(y, lower, upper, ts, cal_scores, mode)
             folds[mode].append(_coverage(y, lower - mm, upper + mm, hours))
+        mm = online_intervals_hourly(y, lower, upper, ts, cal_scores, cal_hours)
+        folds["aci_hour"].append(_coverage(y, lower - mm, upper + mm, hours))
+        width, cal_width = np.maximum(upper - lower, 0), np.maximum(hi_cal - lo_cal, 0)
+        mm = online_intervals_hourly(y, lower, upper, ts, cal_scores, cal_hours, scale=width, calib_scale=cal_width)
+        folds["aci_hour_scaled"].append(_coverage(y, lower - mm, upper + mm, hours))
 
         fit_s, calib_s, used = seasonal_split(train_ts, test_ts)
         lo_s, hi_s = _fit_quantiles(df, cols, target, fit_s, params)
