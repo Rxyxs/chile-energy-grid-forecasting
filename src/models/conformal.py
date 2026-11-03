@@ -151,6 +151,41 @@ def online_intervals(y, lower, upper, ts, calib_scores, mode: str, alpha: float 
     return out, nxt
 
 
+def online_intervals_hourly(y, lower, upper, ts, calib_scores, calib_hours, alpha: float = ALPHA,
+                            gamma: float = 24 * ACI_GAMMA, min_rows: int = MIN_GROUP_CALIBRATION,
+                            scale=None, calib_scale=None) -> np.ndarray:
+    """ACI por hora del día: cada hora tiene sus propios puntajes de calibración y
+    su propio nivel ``alpha_t``, que se actualiza una vez al día. ``gamma`` es el
+    de ``online_intervals`` por 24, para adaptarse en el mismo número de días.
+
+    Con ``scale`` (ancho del intervalo crudo de cada fila) los puntajes se miden en
+    anchos y el margen de cada fila es ``q * scale``: crece donde el modelo de
+    cuantiles ya ve más incertidumbre. Devuelve el margen por fila."""
+    ts = np.asarray(ts)
+    hours = pd.DatetimeIndex(ts).hour.to_numpy()
+    calib_hours = np.asarray(calib_hours)
+    if scale is not None:
+        floor = 0.01 * float(np.median(calib_scale))
+        scale = np.maximum(np.asarray(scale), floor)
+        calib_scores = np.asarray(calib_scores) / np.maximum(np.asarray(calib_scale), floor)
+    by_hour = {h: calib_scores[calib_hours == h] for h in range(24)}
+    by_hour = {h: s if len(s) >= min_rows else calib_scores for h, s in by_hour.items()}
+    alpha_t = dict.fromkeys(range(24), alpha)
+    order = np.argsort(ts, kind="stable")
+    margins = np.empty(len(ts))
+    starts = np.r_[0, np.flatnonzero(ts[order][1:] != ts[order][:-1]) + 1, len(ts)]
+    for a, b in zip(starts[:-1], starts[1:]):
+        rows = order[a:b]
+        h = hours[rows[0]]
+        cal = by_hour[h]
+        q = finite_quantile(cal, alpha_t[h]) if alpha_t[h] > 0 else float(np.max(cal))
+        m = q * scale[rows] if scale is not None else np.full(len(rows), q)
+        margins[rows] = m
+        s = scores(y[rows], lower[rows], upper[rows])
+        alpha_t[h] += gamma * (alpha - float(np.mean(s > m)))
+    return margins
+
+
 def group_margins(y_calib: np.ndarray, lower_calib: np.ndarray, upper_calib: np.ndarray, groups: np.ndarray,
                   alpha: float = ALPHA, min_rows: int = MIN_GROUP_CALIBRATION) -> dict:
     """Margen CQR por grupo (hora del día), con el margen global como respaldo."""

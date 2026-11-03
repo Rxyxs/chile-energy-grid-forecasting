@@ -235,7 +235,17 @@ A pair of LightGBM quantile regressors (5th/95th percentile, a 90% nominal inter
 
 The deployed intervals (`forecast.py`, the dashboard) use the ACI margin at the end of the data: for solar, 1,197 MW at the end of December 2025, against 112 MW from the fixed margin calibrated on October 2024 to April 2025. In operation the level would keep updating as each hour's real value arrives.
 
-**What none of the four fixes: the hour of the day.** ACI corrects coverage over time, not within the day: solar's worst hour is still covered only 66% of the time (night hours are over-covered, the sunrise and sunset ramps under-covered). A Mondrian variant, one margin per hour of the day, moves solar's worst hour only from 55% to 60% and makes demand's and price's worse (`conformal.py` reports it next to the others); the deployed intervals do not use it.
+**The hour of the day needs its own adaptive level.** ACI corrects coverage over time, not within the day: solar's worst hour is still covered only 66% of the time (night hours are over-covered, the sunrise and sunset ramps under-covered). A fixed Mondrian margin, one per hour of the day, barely helps (solar's worst hour 55% to 60%, worse for demand and price; `conformal.py` reports it next to the others). Two hourly ACI variants (`online_intervals_hourly`) do better, with rules fixed before looking at results. Each hour of the day gets its own calibration scores and its own level, updated once a day with `gamma = 24 × 0.005` (the same adaptation speed in days). The scaled variant also measures misses in widths of the raw quantile interval, so the margin grows where the quantile models already see uncertainty:
+
+| Worst hour of the day (mean over folds) | Solar | Wind | Demand | Price |
+|---|---|---|---|---|
+| ACI, one level for all hours | 66.2% | 74.6% | 73.0% | 80.2% |
+| ACI per hour | 69.7% | 87.0% | 78.1% | 88.6% |
+| **ACI per hour, scaled by the raw width** | **75.0%** | **88.5%** | **82.6%** | **89.6%** |
+| Worst fold, scaled hourly ACI (global ACI) | 79.8% (89.2%) | 90.0% (89.9%) | 88.7% (89.7%) | 90.0% (89.9%) |
+| Mean width, scaled hourly ACI (global ACI) | 875 (840) MW | 583 (503) MW | 637 (576) MW | 78.5 (64.3) USD |
+
+For wind and price the scaled hourly version brings the worst hour to within 1.5 points of nominal at no cost in mean or worst-fold coverage, for 16-22% more width. For solar it is a trade, not a fix: each hour now learns only once a day, so a season change takes longer to absorb and the worst fold drops from 89% to 80%; the worst hour is still 75%. Because no variant wins on every target and every criterion, the deployed intervals keep the global ACI margin.
 
 **Quantile crossing.** The two quantile regressors are trained independently, so nothing stops them from crossing on an individual row; `rectify_crossing` enforces the standard fix (element-wise min/max, Chernozhukov, Fernández-Val & Galichon, 2010) everywhere an interval is built or scored, and `tests/test_forecast.py::test_forecast_intervals_are_never_crossed` pins it on `forecast_node`'s recursive output.
 
@@ -308,7 +318,7 @@ src/
               metrics_db.py           DuckDB metrics store (model_comparison table)
               generate_torch_report.py  MLP training + plots + DuckDB persistence
               conformal.py            CQR prediction intervals, 4 targets; adaptive (ACI) margin deployed
-              conformal_shift.py      experiment: fixed, seasonal, rolling and adaptive calibration
+              conformal_shift.py      experiment: fixed, seasonal, rolling, adaptive and hourly adaptive calibration
               forecast.py             recursive multi-step CLI (system first, then buses)
   app/        dashboard.py            Streamlit monitoring + live forecast, with interval band
 data/real/    cen_cmg_hourly.csv.gz, cen_generation_hourly_by_tech.csv.gz, cen_report_extraction_quality.csv,
